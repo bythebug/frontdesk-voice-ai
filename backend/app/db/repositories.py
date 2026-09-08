@@ -53,6 +53,13 @@ class ProviderRepository:
     async def list_all(self) -> list[Provider]:
         return list((await self.session.execute(select(Provider))).scalars().all())
 
+    async def get_by_id(self, provider_id: uuid.UUID) -> Provider | None:
+        return await self.session.get(Provider, provider_id)
+
+    async def find_by_name(self, name: str) -> Provider | None:
+        stmt = select(Provider).where(Provider.name.ilike(f"%{name}%"))
+        return (await self.session.execute(stmt)).scalars().first()
+
 
 class AppointmentTypeRepository:
     def __init__(self, session: AsyncSession) -> None:
@@ -69,6 +76,9 @@ class AppointmentTypeRepository:
 class AvailabilityRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+
+    async def get_by_id(self, slot_id: uuid.UUID) -> AvailabilitySlot | None:
+        return await self.session.get(AvailabilitySlot, slot_id)
 
     async def find_open_slots(
         self,
