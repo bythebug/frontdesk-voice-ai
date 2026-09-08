@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FrontDeskAI",
+  title: "FrontDesk Voice AI",
   description: "Real-Time AI Support Agent",
 };
 

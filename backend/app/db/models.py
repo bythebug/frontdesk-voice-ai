@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM models for the FrontDeskAI schema."""
+"""SQLAlchemy ORM models for the FrontDesk Voice AI schema."""
 
 import enum
 import uuid

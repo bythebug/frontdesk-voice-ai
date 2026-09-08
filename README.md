@@ -1,4 +1,4 @@
-# FrontDeskAI
+# FrontDesk Voice AI
 
 Real-time voice AI support agent for a fictional dental clinic. Speak to it
 through the browser; it transcribes you locally, reasons with a local LLM,
