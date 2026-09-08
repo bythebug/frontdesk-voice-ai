@@ -1,7 +1,7 @@
 """Data-access layer. Tools (Phase 3) call these; they never touch the ORM directly."""
 
 import uuid
-from datetime import date, time
+from datetime import UTC, date, datetime, time
 
 from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -182,6 +182,17 @@ class ConversationRepository:
         if conversation is not None:
             conversation.status = status
             await self.session.flush()
+
+    async def end(self, conversation_id: uuid.UUID) -> None:
+        """Mark a conversation as ended. Leaves an already-ESCALATED status
+        alone; otherwise marks it COMPLETED."""
+        conversation = await self.get_by_id(conversation_id)
+        if conversation is None:
+            return
+        conversation.ended_at = datetime.now(UTC)
+        if conversation.status != ConversationStatus.ESCALATED:
+            conversation.status = ConversationStatus.COMPLETED
+        await self.session.flush()
 
     async def list_messages(self, conversation_id: uuid.UUID) -> list[Message]:
         stmt = (
