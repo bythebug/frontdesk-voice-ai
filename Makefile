@@ -1,4 +1,4 @@
-.PHONY: install dev-backend dev-frontend test lint db-up db-down
+.PHONY: install dev-backend dev-frontend test lint db-up db-down docker-up docker-down
 
 install:
 	cd backend && uv sync
@@ -22,3 +22,11 @@ db-up:
 
 db-down:
 	brew services stop postgresql@16
+
+# UNVERIFIED — see PROJECT.md/README. Full containerized stack
+# (backend + frontend + postgres); Ollama/Piper still run on the host.
+docker-up:
+	docker compose up --build
+
+docker-down:
+	docker compose down

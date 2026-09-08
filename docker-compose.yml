@@ -15,10 +15,36 @@ services:
       timeout: 5s
       retries: 5
 
+  # UNVERIFIED — written without a local Docker install to test against
+  # (see PROJECT.md/README). Ollama/Piper still run on the host either
+  # way (see backend/Dockerfile and README for why); this just
+  # containerizes the FastAPI app itself.
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://voiceops:voiceops@postgres:5432/voiceops
+      OLLAMA_HOST: http://host.docker.internal:11434
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    extra_hosts:
+      # host.docker.internal is automatic on Docker Desktop (Mac/Windows);
+      # this makes it resolve on Linux too.
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
 volumes:
   postgres_data:
 
-# Backend and frontend run natively during development (see README) so they
-# can reach the host's Ollama/Piper processes and your microphone/browser
-# without extra networking config. Containerized app images ship in a later
-# phase once the full pipeline is verified end-to-end.
+# Native (non-Docker) dev — see README — remains the primary documented
+# path, since it reaches the host's Ollama/Piper and your microphone
+# without any of the above networking. `docker compose up` here has not
+# been run against a real Docker install; verify before relying on it.

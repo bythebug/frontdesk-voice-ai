@@ -2,8 +2,8 @@
 
 ## Last Verified
 
-2026-09-08 (this session — Phases 1–7, 9, 10, 11 complete and committed;
-live-verified end-to-end against real Postgres, Ollama, and faster-whisper)
+2026-09-08 (this session — all 13 phases complete; Docker containers
+written but unverified, everything else live-verified end-to-end)
 
 ## Project Goal
 
@@ -20,394 +20,310 @@ software/AI engineering resume.
 
 ### Confirmed
 
+All of the following are now **built and verified** (not just planned):
+
 - Full stack: FastAPI + WebSockets + faster-whisper + Ollama + Piper +
   PostgreSQL (backend); Next.js + TypeScript + React + Tailwind (frontend).
-- No paid APIs anywhere (Twilio, ElevenLabs, OpenAI, Anthropic, Deepgram,
-  AssemblyAI, etc. all explicitly excluded).
+- No paid APIs anywhere.
 - Real tool calling via an explicit typed tool registry — never arbitrary
   LLM code execution.
 - Structured, persisted conversation state (not a stateless prompt loop).
-- Real interruption/barge-in handling (documented limitation acceptable if
-  perfect real-time isn't achievable locally — but must be a real
-  implementation, not faked). **Done in Phase 9** — see Completed.
+- Real interruption/barge-in handling — a cancellable `asyncio.Task` per
+  turn, not simulated.
 - Appointment booking/cancellation require explicit user confirmation
   before the tool executes.
 - Knowledge base uses Postgres full-text search, not a vector DB.
-- Redis only if a genuine need appears (currently: no).
-- Structured logging with per-conversation timeline (latencies, tool calls,
-  errors, interruptions) and a debug view of that timeline.
-- Unit + integration + WebSocket tests; don't advance a phase with failing
-  tests.
-- Docker Compose for at least Postgres; Ollama/Whisper/Piper may run on the
-  host.
-- 13-phase build process (listed under Remaining Work / Completed below),
-  each phase ending in tests+lint+verify+commit.
-- Full README covering architecture (Mermaid diagram), setup for every
-  local component, example conversation, decisions, limitations, testing.
-- Claude should make reasonable engineering decisions autonomously rather
-  than asking approval for every small choice; escalate only genuine
-  blockers or new-dependency decisions per the global CLAUDE.md policy.
+- No Redis (no genuine need appeared).
+- Structured logging with per-conversation timeline (latencies, tool
+  calls, errors) and a debug view (`/debug/[conversationId]`) of it.
+- 41 automated tests; ruff/mypy clean throughout.
+- Docker Compose for Postgres (verified) + backend/frontend (written,
+  unverified — no local Docker install to test against).
+- Full README covering architecture, setup, decisions, limitations,
+  testing — accurate to actual build state, not aspirational.
 
 ### Assumptions
 
-- Target Ollama model `llama3.1:8b`, configurable via `OLLAMA_MODEL` — user
-  explicitly chose this when asked (AskUserQuestion, this session).
-- `uv` for backend dependency management and `npm` for frontend — matches
-  the user's already-installed, per-ecosystem-standard tooling.
-- Single-developer, single-machine demo use case — no auth/multi-tenant
-  requirements were specified, so none are being built.
-- Piper voice `en_US-lessac-medium` — chosen but **Piper itself is not
-  installed** in this dev environment (see Known Issues); TTS degrades
-  gracefully to text-only until it is.
+- Ollama model `llama3.1:8b` — user's explicit choice. Sometimes
+  unreliable at multi-step tool orchestration (see Known Issues); a
+  larger/more tool-tuned model would likely do better.
+- Piper voice `en_US-lessac-medium` — chosen but **Piper is not
+  installed** in this dev environment; TTS degrades gracefully to
+  text-only (verified), actual synthesis unverified.
+- Single-developer, single-machine demo use case — no auth/multi-tenant.
 
 ### Open Questions
 
-None blocking right now.
+None.
 
 ## Current Status
 
-**PARTIALLY COMPLETE** — Phases 1–7, 9, 10, 11 of 13 done, verified, and
-committed (Phase 8's goal — wiring STT+agent+TTS into one real-time
-pipeline — was achieved as part of the Phase 6+7 commit, since the
-WebSocket handler wires all of it together; not a separate commit).
-Phase 12 (testing/error-handling hardening) and Phase 13 (Docker +
-final docs) remain.
+**FUNCTIONALLY COMPLETE.** All 13 phases of the original build plan are
+done. The full voice pipeline has been live-verified end-to-end against
+real Postgres, real Ollama, and real faster-whisper. Two things remain
+genuinely unverified because the tools to verify them aren't installed in
+this dev environment: **Docker** (backend/frontend containers — written,
+not built/run) and **Piper** (TTS — degradation path verified, actual
+synthesis not). Both are clearly flagged in README/here, not silently
+assumed to work.
 
 ## Completed
 
 ### Phases 1–3 — Repo/tooling, database, tool registry
 
-Condensed (see git history `7ce8b5a`, `c69f895`, `61a91c4` for full detail):
-
-- **Phase 1**: `uv`-managed FastAPI backend skeleton (config, structured
-  JSON logging, `/health`), Next.js/TS/Tailwind frontend skeleton,
-  `docker-compose.yml` (Postgres only), Makefile, README, CLAUDE.md.
+- **Phase 1**: `uv`-managed FastAPI backend skeleton, Next.js/TS/Tailwind
+  frontend skeleton, `docker-compose.yml` (Postgres only at the time),
+  Makefile, README, CLAUDE.md.
 - **Phase 2**: Full SQLAlchemy async schema (10 tables), Alembic
   migrations, repository layer, seed data for "Willow Creek Dental".
   PostgreSQL 16 installed **natively via Homebrew**, not Docker (Docker
-  Desktop's first-launch privileged-helper GUI prompt can't be automated —
-  user confirmed this choice). Fixed a real bug: Alembic's autogenerated
-  `downgrade()` dropped tables but not the Postgres ENUM types they used,
-  breaking a downgrade→upgrade round-trip — fixed by dropping the enum
-  types explicitly. `Conversation.messages` is deliberately **not** a
-  lazy-loaded relationship (hit an async `MissingGreenlet` footgun) — use
-  `ConversationRepository.list_messages()` instead; this pattern (explicit
-  repository queries over lazy relationships) should be preferred
-  throughout.
-- **Phase 3**: Typed tool registry (`app/agent/tool_registry.py`) + 8
-  tools in `app/tools/` (`lookup_customer`, `create_customer`,
-  `check_availability`, `book_appointment`, `cancel_appointment`,
-  `search_knowledge_base`, `send_confirmation`, `transfer_to_human`).
-  `book_appointment`/`cancel_appointment` both require `confirmed: true`,
-  enforced in the tool itself. Known simplification: every appointment
-  consumes exactly one 30-minute slot regardless of
-  `appointment_type.duration_minutes`.
+  Desktop's GUI first-launch prompt can't be automated — user confirmed
+  this choice). Fixed a real bug: Alembic's autogenerated `downgrade()`
+  dropped tables but not the Postgres ENUM types they used, breaking a
+  downgrade→upgrade round-trip. `Conversation.messages` is deliberately
+  **not** a lazy-loaded relationship (hit an async `MissingGreenlet`
+  footgun) — use `ConversationRepository.list_messages()` instead.
+- **Phase 3**: Typed tool registry + 8 tools (`lookup_customer`,
+  `create_customer`, `check_availability`, `book_appointment`,
+  `cancel_appointment`, `search_knowledge_base`, `send_confirmation`,
+  `transfer_to_human`). Booking/cancelling require `confirmed: true`,
+  enforced in the tool itself.
 
 ### Phase 4 — Agent engine + structured state + Ollama integration
 
-- `app/agent/state.py`: `ConversationState` — customer_id, intent,
-  appointment_date/time/type, last_appointment_id, awaiting_confirmation,
-  current_step, escalated. `apply_tool_result()` updates it from actual
-  tool outcomes only, never LLM-guessed.
-- `app/agent/prompts.py`: system prompt (booking-confirmation and
-  knowledge-base-before-guessing rules) + `build_messages()`, which
-  windows history to the last 10 messages and injects a compact state
-  summary instead of replaying the full transcript every turn.
-- `app/agent/llm_provider.py`: `LLMProvider` ABC (`generate` /
-  `generate_structured`) + `OllamaProvider` over `/api/chat` via `httpx`.
-  Model name from `Settings.ollama_model`, never hardcoded.
-  `generate_structured()` uses Ollama's JSON-schema-constrained output.
-- `app/agent/agent.py`: `ConversationAgent` — the decision loop (state →
-  LLM → tool selection → `registry.execute()` → state update → LLM again
-  or final response), bounded by `MAX_TOOL_ITERATIONS=3`. The spec's
-  suggested `planner.py` was folded into `agent.py` — "decision loop" and
-  "planner" were the same responsibility; splitting them would have been
-  an empty abstraction.
-- Ollama installed via Homebrew; `llama3.1:8b` pulled (user's explicit
-  choice, ~4.9GB).
+`app/agent/state.py` (`ConversationState`), `prompts.py` (system prompt +
+windowed context), `llm_provider.py` (`OllamaProvider` over `/api/chat`),
+`agent.py` (`ConversationAgent` decision loop, `MAX_TOOL_ITERATIONS=3`).
+The spec's suggested `planner.py` was folded into `agent.py` — splitting
+"decision loop" from "planner" would have been an empty abstraction.
+Ollama installed via Homebrew; `llama3.1:8b` pulled.
 
 ### Phase 5 — WebSocket communication
 
-- `app/api/websocket.py`: `/ws/conversation` endpoint. Documented,
-  Pydantic-validated JSON protocol (the module docstring **is** the
-  protocol doc — read it directly for the authoritative message list, it
-  has grown across Phases 6/7/9/11). Wires the Phase 4 agent to real-time
-  `agent_state` transitions and `tool_call`/`tool_result` frames.
-- Real bug caught by mypy: `import app.tools` in `main.py` shadowed the
-  `app` FastAPI instance name (Python binds the top-level package name on
-  `import a.b`) — fixed via `from app import tools`.
+`app/api/websocket.py` — `/ws/conversation`, documented Pydantic-validated
+protocol (module docstring is the authoritative spec). Caught a real bug:
+`import app.tools` in `main.py` shadowed the `app` FastAPI instance name
+— fixed via `from app import tools`.
 
-### Phase 6+7 — Speech-to-text (faster-whisper) + Text-to-speech (Piper)
+### Phase 6+7 — Speech-to-text + Text-to-speech
 
-- `app/voice/stt.py`: `SpeechToText` ABC + `FasterWhisperSTT`. Runs
-  faster-whisper's sync inference in a thread executor; lazy model load.
-  **Live-verified**: downloaded `base.en`, ran a real transcription (not
-  mocked) — confirmed the API usage is correct.
-- `app/voice/tts.py`: `TextToSpeech` ABC + `PiperTTS`, invoking the
-  `piper` CLI as a subprocess (`--model <voice>.onnx --output_raw`)
-  rather than a Python binding — avoids coupling to a specific binding
-  API. **Not live-verified** — Piper itself isn't installed in this dev
-  environment; degrades gracefully (checks binary/model existence,
-  raises `TtsUnavailableError` with an actionable message, WebSocket
-  handler catches it and just skips the `audio` frame — text-only
-  response, no crash). See Known Issues.
-- `app/voice/audio.py`: base64 ⟷ raw-PCM helpers, plus `is_speech()`
-  (RMS-threshold check) added in Phase 9 for barge-in detection.
-- Wired into the WebSocket layer: `audio_chunk` buffers real decoded PCM;
-  `audio_end` transcribes the buffer and feeds it through the same
-  `_handle_user_text` path as `user_text` — this **is** Phase 8's "wire
-  STT+agent+TTS into one real-time pipeline" goal, achieved here rather
-  than as a separate phase/commit.
+`app/voice/stt.py` (`FasterWhisperSTT`, thread-executor wrapped, lazy
+model load) — **live-verified**: real model download + real
+transcription. `app/voice/tts.py` (`PiperTTS`, CLI subprocess, not a
+Python binding) — **not live-verified**, Piper isn't installed; the
+`TtsUnavailableError` degradation path is tested. Wired into the
+WebSocket layer (`audio_chunk`/`audio_end`) — this is also where Phase
+8's "real-time pipeline" goal was achieved, not as a separate phase.
 
 ### Phase 9 — Interruption / barge-in (real, not simulated)
 
-- Each conversational turn now runs as a cancellable `asyncio.Task`
-  (`_run_turn`), not inline in the receive loop — this is what lets the
-  server keep listening for new input while a response is in flight.
-  Real speech arriving mid-turn (server-side RMS check via
-  `is_speech()`) cancels the in-flight task, rolls back its uncommitted
-  DB writes, and sends `agent_state` `"interrupted"` → `"listening"`
-  before the new input is processed.
-- **Three real bugs found via live testing** (not caught by mocks —
-  worth remembering as a lesson: mock-only tests missed all three):
-  1. Cancelling a task that shared the connection-level `AsyncSession`
-     corrupted SQLAlchemy's async/greenlet bridge (`MissingGreenlet` on
-     later queries). Fixed: each turn now opens **its own** DB session
-     (`async with session_factory() as session` inside `_run_turn`),
-     cancellation-safe by construction.
-  2. Tool results fed to Ollama as role `"system"` confused its chat
-     template into echoing a literal `"assistant\n\n"` into its own
-     response (would've been spoken aloud by TTS). Fixed: mapped to role
-     `"tool"` in `prompts.py` (DB storage unaffected — still
-     `MessageSpeaker.SYSTEM`).
-  3. A race where the client could react to the final `"listening"`
-     frame and send its next message before the server's trailing
-     `session.commit()` finished, making the just-finished turn look
-     "still in progress" and spuriously self-interrupting it. Fixed:
-     commit now happens *before* the final state frame, not after.
-- Known, documented limitation: once a turn's frames (e.g. its `"audio"`
-  message) have actually been sent, cancellation can't un-send them —
-  most valuable during the "thinking"/"calling_tool" latency. The
-  frontend additionally stops local audio playback immediately on
-  detecting new speech, which is the practical mechanism for interrupting
-  audio already in flight.
+Each turn runs as a cancellable `asyncio.Task`. Real speech mid-turn
+(server-side RMS check, `app/voice/audio.py`'s `is_speech()`) cancels it,
+rolls back its DB writes, sends `agent_state` `"interrupted"` →
+`"listening"`. **Three real bugs found via live testing** (not caught by
+mocks):
+1. Cancelling a task that shared the connection-level `AsyncSession`
+   corrupted SQLAlchemy's async/greenlet bridge (`MissingGreenlet` on
+   later queries). Fixed: each turn now opens its own DB session.
+2. Tool results sent to Ollama as role `"system"` caused it to echo a
+   literal `"assistant\n\n"` into responses (would've been spoken by
+   TTS). Fixed: mapped to role `"tool"` (DB storage still
+   `MessageSpeaker.SYSTEM`).
+3. A race where the client's reaction to the final `"listening"` frame
+   could beat the server's trailing `session.commit()`, spuriously
+   self-interrupting a turn that had actually already finished. Fixed:
+   commit moved before the final state frame.
+
+Frontend also does real local barge-in: stops whatever audio is currently
+playing the instant new speech is detected (the only way to interrupt
+audio already sent over the wire).
 
 ### Phase 10 — Frontend dashboard
 
-- `src/lib/protocol.ts`: TS types mirroring the backend protocol exactly.
-- `src/lib/audio.ts` / `useConversationSocket.ts`: PCM16 encode/decode,
-  16kHz downsampling, the WebSocket lifecycle, mic capture
-  (`ScriptProcessorNode` — deprecated but simplest, no separate
-  AudioWorklet module to serve; noted as an upgrade path), a simple
-  amplitude-threshold silence detector that auto-sends `audio_end`,
-  sequential playback of `audio` frames, and (Phase 9) real local
-  playback interruption on detected barge-in.
-- Components: `Header` (status badge), `ConversationPanel` (transcript),
-  `VoiceControls` (mic button + `Waveform` canvas), `AgentStateIndicator`,
-  `ToolActivityPanel`, `CallSummaryPanel` (wired to real data in Phase 11).
+`protocol.ts` (wire types), `audio.ts`/`useConversationSocket.ts` (WS
+lifecycle, mic capture via `ScriptProcessorNode`, amplitude-threshold
+silence detection, sequential audio playback). Components: `Header`,
+`ConversationPanel`, `VoiceControls` + `Waveform`, `AgentStateIndicator`,
+`ToolActivityPanel`, `CallSummaryPanel`.
 
 ### Phase 11 — Call summaries + observability
 
-- `app/services/summary_service.py`: `generate_call_summary()` — factual
-  fields (appointment, escalation, actions_taken) come from
-  `ConversationState`/DB (ground truth), only the free-text
-  intent/issue/outcome come from the LLM (`generate_structured`),
-  degrading to a clear "unavailable" outcome if the LLM can't be reached.
-  Wired into the WebSocket `end_conversation` handler as a new
-  `call_summary` message.
-- Tool calls are now actually **persisted** (`ToolCallRepository.record()`
-  called from `agent.py` after every execution) — previously only
-  logged, so the `tool_calls` DB table built in Phase 2 was dead code
-  until this phase.
-- `app/api/conversations.py`: `GET /api/conversations/{id}/timeline` —
-  read-only REST endpoint merging messages + tool calls into one
-  timestamp-ordered event list with tool latencies.
-- Frontend: `CallSummaryPanel` now consumes the real `call_summary`
-  message; `src/app/debug/[conversationId]/page.tsx` is a server
-  component rendering the timeline as a monospace event log, linked from
-  the sidebar once a conversation is active.
+`app/services/summary_service.py`: factual fields (appointment,
+escalation, actions_taken) from `ConversationState`/DB; only free-text
+intent/issue/outcome from the LLM (`generate_structured`), degrading
+gracefully if unreachable. Tool calls now actually **persisted**
+(`ToolCallRepository.record()` — previously only logged, so the Phase 2
+`tool_calls` table was dead code until this phase). `GET
+/api/conversations/{id}/timeline` REST endpoint + the frontend debug page
+consuming it.
+
+### Phase 12 — Testing + error-handling hardening
+
+Systematic audit of the spec's failure-mode list against what was
+actually built. Closed two real gaps:
+- Tool execution timeout (`Settings.tool_timeout_seconds`, default 10s)
+  via `asyncio.wait_for()` in `tool_registry.execute()` — previously a
+  hung tool would hang the whole turn indefinitely.
+- Unhandled exceptions in a turn's `asyncio.Task` (Phase 9) previously
+  just vanished (nothing but `cancel_current_turn()` ever awaits that
+  task) — a mid-conversation DB failure would silently hang the
+  conversation with no error sent. Now caught, logged, turned into a
+  real `"error"` frame + `"listening"` state.
+
+### Phase 13 — Docker + documentation
+
+- `backend/Dockerfile`, `frontend/Dockerfile` (multi-stage, Next.js
+  `output: "standalone"`), `.dockerignore` for both — **written but
+  unverified**; user chose this explicitly via AskUserQuestion (Docker
+  isn't installed, same reasoning as the Phase 2 Postgres/Phase 4 Ollama
+  decisions — the GUI first-launch prompt can't be automated).
+- `docker-compose.yml` expanded to include `backend`/`frontend` services
+  alongside the already-verified `postgres` (env-var wiring:
+  `DATABASE_URL` → `postgres` service hostname, `OLLAMA_HOST` →
+  `host.docker.internal`, with `extra_hosts` for Linux compatibility).
+  Ollama/Piper still run on the host in every configuration.
+- `Makefile` gained `docker-up`/`docker-down`.
+- README rewritten to reflect actual current state throughout (was
+  significantly stale — still said "Phase 1 of 13" and referenced a
+  target-only example conversation). Now includes a real captured
+  example conversation from a live pipeline run, an honest Docker
+  section explaining exactly what's unverified and why, and an expanded
+  Known Limitations section.
 
 ## In Progress
 
-Nothing mid-flight. All listed phases above are committed.
+Nothing. All 13 phases complete.
 
 ## Next Task
 
-**Phase 12 — Testing + error handling hardening.** Much of this is
-already in place incrementally (39 tests across the suite, graceful
-degradation for LLM/STT/TTS/DB failures), but the phase itself should be
-a deliberate pass:
+None required by the original spec. If continuing this project further,
+reasonable next steps (not required, see Remaining Work → Desirable):
 
-- Systematically check every failure mode listed in the original spec is
-  actually handled: LLM unavailable ✓ (tested), Ollama unavailable ✓
-  (same path), Whisper failure ✓ (tested), Piper failure ✓ (tested),
-  malformed tool call ✓ (registry validates), invalid tool arguments ✓,
-  database failure (conversation creation has a try/except; audit
-  whether other DB call sites need similar handling), WebSocket
-  disconnect ✓ (tested), user stops speaking unexpectedly (empty
-  transcript handled — audio dropout mid-stream not explicitly tested),
-  TTS cancellation (n/a — no streaming TTS to cancel), tool timeout (not
-  implemented — tools have no timeout wrapper; consider adding one),
-  duplicate appointment booking ✓ (tested), stale appointment
-  availability ✓ (atomic `try_book()`).
-- Add a tool-execution timeout in `tool_registry.execute()` if not
-  already covered — currently a hung tool would hang the whole turn.
-- Review whether any WebSocket message handler can raise an unhandled
-  exception and crash the connection (the `except Exception` boundaries
-  should be audited for completeness, not just spot-checked).
-- Consider whether test coverage should be organized/reported
-  differently (e.g. `pytest --cov`) — not currently measured.
-
-Then **Phase 13 — Docker + documentation**: containerize backend/frontend
-(Docker still isn't installed in this environment — flag to the user
-before attempting, same as the Phase 2 decision), finalize the README's
-remaining sections against actual verified behavior.
+1. Install Docker and actually run `docker compose up --build` — verify
+   or fix the Dockerfiles/compose networking.
+2. Install Piper and verify real speech synthesis end-to-end.
+3. Try a larger/more tool-tuned Ollama model to see if multi-step
+   booking flows complete more reliably than with `llama3.1:8b`.
 
 ## Remaining Work
 
 ### Required (per the 13-phase plan)
 
-- Phase 12: Testing + error handling hardening (see Next Task for specifics).
-- Phase 13: Docker (containerize backend/frontend) + finalize documentation.
+None — all 13 phases complete.
 
 ### Desirable / Optional
 
-- Streaming/chunked STT for lower perceived latency (explicitly called out
-  as "investigate where practical", not mandatory).
-- AudioWorklet instead of the deprecated `ScriptProcessorNode` (frontend).
-- A larger/more tool-tuned Ollama model, if the user wants more reliable
-  multi-step tool orchestration than `llama3.1:8b` provides (see Known
-  Issues).
+- Verify Docker end-to-end (needs Docker installed — ask the user first,
+  don't install unilaterally).
+- Install and verify Piper TTS for real speech output.
+- Streaming/chunked STT for lower perceived latency.
+- AudioWorklet instead of the deprecated `ScriptProcessorNode`.
+- A larger/more tool-tuned Ollama model for more reliable multi-step
+  tool orchestration.
 
 ## Architecture
 
-See `README.md` for the diagram and full description — it's now
-substantially accurate to what's built, not aspirational, except for
-Docker containerization of backend/frontend (Phase 13) and Piper actually
-being installed. Everything in Completed above is real, wired, and
-tested; the WebSocket protocol docstring in `app/api/websocket.py` is the
-authoritative message-format reference.
+See `README.md` for the diagram and full description — accurate to what's
+built. The WebSocket protocol docstring in `app/api/websocket.py` is the
+authoritative message-format reference. Everything in Completed above is
+real, wired, and tested, except: Docker containers (written, unverified)
+and actual Piper speech synthesis (degradation path verified, synthesis
+itself not).
 
 ## Important Decisions
 
-- **No Redis.** No cross-process cache/queue need identified. Stable.
-- **No vector database.** Postgres full-text search is sufficient. Stable
-  per explicit user instruction.
-- **Postgres runs natively via Homebrew; Ollama also installed natively
-  via Homebrew** (not Docker) — same reasoning both times: Docker
-  Desktop's GUI first-launch prompt can't be automated. User confirmed
-  both choices via AskUserQuestion this session.
-- **`docker-compose.yml` currently only defines Postgres.** Docker isn't
-  installed; backend/frontend containers are explicitly deferred to
-  Phase 13, when they can actually be verified.
+- **No Redis, no vector database.** No genuine need appeared; explicit
+  user constraints besides.
+- **Postgres and Ollama both installed natively via Homebrew, not
+  Docker** — Docker Desktop's GUI first-launch prompt can't be
+  automated; user confirmed both choices via AskUserQuestion.
+- **Docker Compose for backend/frontend written but left unverified** —
+  user explicitly chose this (AskUserQuestion) over skipping Docker
+  entirely or installing Docker Desktop mid-session.
 - **Tests use `Base.metadata.create_all` against a real `voiceops_test`
   database, not Alembic migrations** — faster test setup; migrations are
-  still exercised for real via the README's documented dev flow.
-- **`uv` for backend, `npm` for frontend** — both pre-installed,
-  ecosystem-standard.
-- **Tool results are sent to Ollama as role `"tool"`** but persisted in
+  still exercised for real via the documented dev flow.
+- **`uv` for backend, `npm` for frontend.**
+- **Tool results are sent to Ollama as role `"tool"`**, persisted in
   Postgres as `MessageSpeaker.SYSTEM` (no schema change) — see Phase 9.
-- **Each WebSocket turn owns its own DB session**, opened/closed within
-  its own cancellable task — required for barge-in to be safe; see Phase
-  9 bug #1.
-- **Piper is invoked as a CLI subprocess, not a Python binding** — avoids
-  coupling to a specific package's API surface; matches Piper's
-  documented usage pattern.
+- **Each WebSocket turn owns its own DB session** — required for
+  barge-in to be cancellation-safe; see Phase 9 bug #1.
+- **Piper is invoked as a CLI subprocess, not a Python binding.**
+- **Tool calls are bounded by a 10-second timeout** (Phase 12).
 
 ## Dependencies
 
 Backend (`backend/pyproject.toml`):
 - `fastapi`, `uvicorn[standard]`, `pydantic-settings`, `websockets`,
-  `httpx` — web/async framework, config, HTTP client (also used for
-  Ollama).
-- `sqlalchemy[asyncio]`, `asyncpg`, `alembic` — async ORM, Postgres
-  driver, migrations.
-- `faster-whisper`, `numpy` — STT.
-- Piper adds **no** Python dependency (subprocess call to an external
+  `httpx`, `sqlalchemy[asyncio]`, `asyncpg`, `alembic`, `faster-whisper`,
+  `numpy`. Piper adds no Python dependency (subprocess to an external
   binary).
 - Dev: `pytest`, `pytest-asyncio`, `httpx`, `ruff`, `mypy`.
 
 Frontend (`frontend/package.json`): `next`, `react`, `react-dom`,
 `typescript`, `tailwindcss`, `eslint`, `eslint-config-next` — no
 additions beyond the `create-next-app` template; all real-time/audio
-logic uses native browser APIs (WebSocket, Web Audio), no added libraries.
+logic uses native browser APIs.
 
 ## Commands
 
 ```bash
 cd backend && uv sync && uv run alembic upgrade head && uv run python -m app.db.seed
-cd backend && uv run pytest -q              # 39 passed
+cd backend && uv run pytest -q              # 41 passed
 cd backend && uv run ruff check .           # clean
 cd backend && uv run mypy app               # clean, 30 source files
 cd backend && uv run uvicorn app.main:app --reload --port 8000
-cd frontend && npm install && npm run dev   # → localhost:3000 (or next free port)
+cd frontend && npm install && npm run dev   # → localhost:3000
 cd frontend && npm run lint && npm run build  # both clean
 brew services start postgresql@16
 brew services start ollama
+docker compose up --build                   # UNVERIFIED — see Known Issues
 ```
 
 From repo root: `make install`, `make dev-backend`, `make dev-frontend`,
-`make test`, `make lint`, `make db-up`, `make db-down`.
-
-Not verified: `docker compose up` (Docker not installed in this
-environment; not the active local-dev path — see Important Decisions).
+`make test`, `make lint`, `make db-up`, `make db-down`, `make docker-up`
+(unverified), `make docker-down`.
 
 ## Verification
 
-- **39 automated tests passing** (`uv run pytest -q`), ruff and mypy
-  clean throughout every phase.
-- **Live end-to-end verification this session** (not just mocks):
-  - `FasterWhisperSTT`: real model download (`base.en`) + real
-    transcription of synthetic audio — confirmed working.
-  - `OllamaProvider.generate()`: real call to `llama3.1:8b`, correct
-    response.
-  - `OllamaProvider.generate()` with tools: real tool-calling — model
-    correctly selected `search_knowledge_base` with the right arguments.
-  - `OllamaProvider.generate_structured()`: real structured output,
-    valid `SummaryContent` returned.
-  - Full pipeline via a real WebSocket client against a real running
-    server: `user_text` → real agent → real Ollama tool call → real DB
-    query → real tool result → real Ollama final response → correct
-    frame sequence → real `call_summary` generation on `end_conversation`.
-    This live run is what surfaced and let us fix the three Phase 9 bugs
-    above.
-  - A two-turn conversation (booking flow) confirmed the
-    commit-before-final-frame fix resolved the spurious
-    self-interruption race.
-- Piper/TTS: verified the *degradation path* works (binary-not-found →
-  `TtsUnavailableError` → caught → text-only response, no crash) but
-  Piper itself was never actually run (not installed).
+- **41 automated tests passing**, ruff/mypy clean on every commit;
+  `npm run lint`/`npm run build` clean on every frontend commit.
+- **Live end-to-end verification** (real services, not mocks):
+  `FasterWhisperSTT` (real model + transcription), `OllamaProvider`
+  (`generate()`, tool-calling, `generate_structured()` — all confirmed
+  against real `llama3.1:8b`), a full WebSocket client run through a
+  real server hitting real Ollama + real DB + producing a real
+  `call_summary`, and a two-turn conversation confirming the
+  commit-ordering interruption-race fix.
+- **Not verified**: `docker compose up --build` (no Docker installed);
+  actual Piper speech synthesis (no Piper installed) — both clearly
+  flagged, not silently assumed.
 
 ## Known Issues
 
-- **Piper is not installed** in this dev environment. TTS gracefully
-  degrades to text-only (verified), but no actual speech synthesis has
-  been exercised. Install via `pip install piper-tts` or a downloaded
-  binary + voice model before Phase 13 sign-off, or note this as a
-  documented gap.
+- **Docker unverified.** `docker-compose.yml`/Dockerfiles are written per
+  standard patterns (multi-stage Next.js standalone build, `uv sync`
+  backend build) but never actually built or run. Most likely failure
+  points if something's wrong: `backend/Dockerfile`'s
+  `faster-whisper`/`ctranslate2` native deps on `python:3.12-slim`, or
+  `host.docker.internal` resolution for reaching host Ollama.
+- **Piper unverified.** Not installed; degradation path is real and
+  tested, actual synthesis is not.
 - **`llama3.1:8b` sometimes loops on tool calls** during multi-step
-  flows (e.g., repeatedly calling `lookup_customer` instead of
-  proceeding to `create_customer`) rather than completing a booking —
-  a model-capability limitation, not an architecture bug (documented in
-  README). A larger/more tool-tuned model would likely do better.
-- Docker is still not installed — `docker-compose.yml` covers Postgres
-  only; backend/frontend containerization is Phase 13's job and will
-  need Docker installed first (flag to the user, same as the earlier
-  Postgres/Ollama decisions).
+  flows rather than completing a booking — a model-capability
+  limitation, not an architecture bug (documented in README).
 - `alembic revision --autogenerate` will always propose dropping
-  `knowledge_base_fts_idx` (a raw-SQL functional index invisible to ORM
+  `knowledge_base_fts_idx` (raw-SQL functional index, invisible to ORM
   metadata) — expected, documented in `backend/migrations/README`.
 - System `python3` is 3.9.6 — irrelevant since `uv` manages its own
-  3.12+ interpreter, but worth knowing if anyone runs code outside `uv run`.
-- Tool execution has no timeout wrapper — a hung tool call would hang
-  the whole turn indefinitely. Flagged for Phase 12.
+  3.12+ interpreter.
 
 ## Blockers
 
-None currently. Phase 12 needs no new environment decisions. Phase 13
-will need Docker installed — surface that to the user when starting it,
-don't install unilaterally (same reasoning as the Postgres/Ollama
-decisions: Docker Desktop's GUI first-launch prompt can't be automated).
+None. The project is functionally complete; remaining items (Docker
+verification, Piper installation) are optional follow-ups requiring
+tools not installed in this environment, not blockers to the delivered
+work.
 
 ## Files and Components
 
@@ -416,94 +332,85 @@ decisions: Docker Desktop's GUI first-launch prompt can't be automated).
 | `backend/app/main.py` | FastAPI app entrypoint, wires all routers | Implemented |
 | `backend/app/core/` | Settings, structured JSON logging | Implemented |
 | `backend/app/db/` | Models, async session, repositories, migrations, seed | Implemented, tested, live-verified |
-| `backend/app/agent/` | State, prompts, LLM provider, orchestration loop | Implemented, tested, live-verified against real Ollama |
+| `backend/app/agent/` | State, prompts, LLM provider, orchestration, tool registry | Implemented, tested, live-verified against real Ollama |
 | `backend/app/tools/` | 8 tool implementations | Implemented, tested |
-| `backend/app/voice/` | STT (faster-whisper), TTS (Piper CLI), audio helpers | Implemented; STT live-verified, TTS degradation-path verified only |
+| `backend/app/voice/` | STT (faster-whisper), TTS (Piper CLI), audio helpers | STT live-verified; TTS degradation-path verified only |
 | `backend/app/api/websocket.py` | Real-time protocol + interruption handling | Implemented, tested, live-verified |
 | `backend/app/api/conversations.py` | Debug timeline REST endpoint | Implemented, tested |
 | `backend/app/services/summary_service.py` | Call summary generation | Implemented, tested |
-| `backend/tests/` | 39 tests across 8 files | All passing |
-| `frontend/src/lib/` | Protocol types, audio helpers, the core WebSocket hook | Implemented, build/lint clean |
-| `frontend/src/components/` | Header, ConversationPanel, VoiceControls, Waveform, AgentStateIndicator, ToolActivityPanel, CallSummaryPanel | Implemented, build/lint clean |
+| `backend/Dockerfile` | Backend container image | Written, unverified |
+| `backend/tests/` | 41 tests across 8 files | All passing |
+| `frontend/src/lib/` | Protocol types, audio helpers, core WebSocket hook | Implemented, build/lint clean |
+| `frontend/src/components/` | All 7 dashboard components | Implemented, build/lint clean |
 | `frontend/src/app/page.tsx` | Main dashboard | Implemented |
 | `frontend/src/app/debug/[conversationId]/` | Debug timeline page | Implemented |
-| `docker-compose.yml` | Local Postgres (alt. to native Homebrew) | Implemented, unverified (no Docker) |
+| `frontend/Dockerfile` | Frontend container image | Written, unverified |
+| `docker-compose.yml` | Postgres (verified) + backend/frontend (unverified) | Partially verified |
 | `README.md` | Setup + architecture + limitations | Accurate to current build state |
 | `CLAUDE.md` | Project-specific hard constraints | Implemented |
 
 ## Session Progress
 
-### 2026-09-08 — Session 1: Phases 1–11 (except 8, folded into 6+7), 9
+### 2026-09-08 — Session 1: All 13 phases, one continuous session
 
-Full session building from an empty directory through 11 of 13 phases in
-one continuous session, pausing twice for genuine environment decisions
-(Postgres: native Homebrew vs. Docker; Ollama model choice) via
-AskUserQuestion, both resolved by the user. Backend/frontend work was
-interleaved with background package/model downloads (faster-whisper deps,
-`llama3.1:8b`) to avoid idle waiting.
+Built the entire project from an empty directory through all 13 phases in
+one session, pausing three times for genuine environment decisions via
+AskUserQuestion (Postgres: native vs. Docker; Ollama model choice; Docker
+for Phase 13: write-but-don't-verify vs. skip vs. install-now) — all
+resolved by the user. Backend/frontend work was interleaved with
+background package/model downloads to avoid idle waiting.
 
 Key moments worth remembering:
 - Caught a real Alembic downgrade bug (orphaned Postgres enum types) by
   actually running a migration round-trip instead of trusting autogenerate.
 - Caught a real Python name-shadowing bug (`import app.tools` clobbering
-  the `app` FastAPI instance) via mypy, not manual review.
-- **Live end-to-end testing against real Ollama/faster-whisper (not just
-  mocks) surfaced three real concurrency/prompt-formatting bugs** in the
-  Phase 9 interruption work that no mocked test caught: a
-  session-sharing crash under task cancellation, a chat-template role
-  confusion causing leaked "assistant" text, and a commit-ordering race
-  causing spurious self-interruption. All three fixed and verified live
-  afterward. This is the strongest argument in this project for why the
-  live-verification step matters, not just unit tests with mocks.
-- Deliberately scoped Piper out of live verification (not installed) —
-  the degradation path is real and tested, but actual speech synthesis
-  is unverified. This is an honest, flagged gap, not an oversight.
+  the `app` FastAPI instance) via mypy.
+- **Live end-to-end testing against real Ollama/faster-whisper surfaced
+  three real concurrency/prompt-formatting bugs** in the interruption
+  work that no mocked test caught (session-sharing crash under
+  cancellation, chat-template role confusion, commit-ordering race). All
+  fixed and re-verified live. This is the strongest evidence in this
+  project for why live verification matters beyond unit tests with mocks.
+- Deliberately scoped Docker and Piper out of live verification (neither
+  installed) — both degradation/expected-behavior paths are real and
+  tested where applicable, but flagged honestly as unverified rather
+  than assumed to work.
 
-Verification: 39/39 tests passing, ruff/mypy clean on every commit,
+Verification: 41/41 tests passing, ruff/mypy clean on every commit,
 `npm run lint`/`npm run build` clean on every frontend commit, multiple
 live end-to-end runs against real Postgres + Ollama + faster-whisper.
-
-Remaining: Phase 12 (testing/error-handling hardening pass) and Phase 13
-(Docker + final docs) — see Next Task.
 
 ## Handoff Notes
 
 1. **What are we building?** VoiceOps — a local-only, real-time voice AI
-   support agent (FastAPI/WebSocket/faster-whisper/Ollama/Piper/Postgres
-   backend, Next.js frontend) for a fictional dental clinic, built as a
-   13-phase portfolio project. Durable constraints/decisions live in
-   `CLAUDE.md` and this file's Requirements/Important Decisions sections.
-2. **Where are we now?** Phases 1–7, 9, 10, 11 done, verified, and
-   committed (check `git log` — don't trust this line blindly if time
-   has passed). Phase 8's goal was achieved inside the Phase 6+7 commit.
-3. **What was most recently completed?** Phase 9 (real interruption/
-   barge-in) plus live end-to-end verification of the whole pipeline
-   against real Ollama and faster-whisper, which caught and fixed three
-   real bugs (see Session Progress).
-4. **What remains?** Phase 12 (testing/error-handling hardening — see
-   Next Task for the specific checklist) then Phase 13 (Docker + docs).
-5. **What should happen next?** Start Phase 12 — it's mostly an audit
-   pass over already-mostly-handled failure modes plus a couple of real
-   gaps (tool execution timeout, a systematic DB-failure audit). Phase 13
-   needs Docker installed first — ask the user, don't install
-   unilaterally (Docker Desktop's GUI prompt can't be automated, same as
-   the earlier Postgres/Ollama decisions).
+   support agent, built as a 13-phase portfolio project. All 13 phases
+   are complete. Durable constraints/decisions live in `CLAUDE.md` and
+   this file.
+2. **Where are we now?** Everything required by the original spec is
+   built, tested, and (mostly) live-verified. Check `git log` to confirm
+   current state — don't trust this file blindly if time has passed.
+3. **What was most recently completed?** Phase 13: Dockerfiles +
+   expanded `docker-compose.yml` (unverified, by explicit user choice)
+   and a full README rewrite to match actual current state.
+4. **What remains?** Nothing required. Optional follow-ups: verify
+   Docker (needs Docker installed), verify Piper (needs Piper
+   installed), try a larger Ollama model for more reliable tool-use.
+5. **What should happen next?** Depends entirely on what the user wants
+   from here — this isn't a "next phase," it's now a maintenance/
+   polish/extension conversation. Don't assume more phases are needed
+   unless the user asks for something new.
 6. **What must the next Claude be careful about?**
-   - Don't re-scaffold what exists — check `git log` and this file first.
-     Almost everything in the original 13-phase spec is now real and
-     tested; Phase 12+13 are hardening/packaging, not new features.
-   - Prefer live verification over trusting mocked tests alone when
-     touching the agent/WebSocket/voice layers — this session's
-     experience is that mocks miss real concurrency and prompt-format
-     bugs that only show up against the real LLM/STT stack.
+   - Don't assume Docker or Piper work — they're explicitly unverified.
+     Check `command -v docker`, `command -v piper` before claiming
+     otherwise.
+   - Prefer live verification over trusting mocks alone when touching
+     the agent/WebSocket/voice layers — this session's experience is
+     that mocks miss real concurrency and prompt-format bugs.
    - Don't add Redis, a vector DB, or any paid API.
-   - Piper is still not installed — don't assume TTS has been
-     live-verified beyond its degradation path.
    - `Conversation.messages` is not a lazy-loaded relationship; use
      `ConversationRepository.list_messages()`. Each WebSocket turn opens
      its own DB session — don't reintroduce a shared session across
-     cancellable tasks (see Phase 9 bug #1).
-   - Tool results go to Ollama as role `"tool"`, not `"system"` — don't
-     revert this (see Phase 9 bug #2).
+     cancellable tasks.
+   - Tool results go to Ollama as role `"tool"`, not `"system"`.
    - Reconcile this file against the real repo state at the end of every
      meaningful session, not append to blindly.
