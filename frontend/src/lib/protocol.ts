@@ -1,6 +1,6 @@
 // Mirrors backend/app/api/websocket.py's message protocol exactly.
 
-export type AgentStateValue = "listening" | "thinking" | "calling_tool" | "speaking";
+export type AgentStateValue = "listening" | "thinking" | "calling_tool" | "speaking" | "interrupted";
 export type Speaker = "user" | "agent";
 
 export type ServerMessage =

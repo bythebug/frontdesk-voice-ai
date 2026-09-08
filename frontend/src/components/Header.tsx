@@ -1,6 +1,13 @@
 import type { AgentStateValue, ConnectionStatus } from "@/lib/protocol";
 
-export type HeaderStatus = "offline" | "connecting" | "listening" | "thinking" | "speaking" | "error";
+export type HeaderStatus =
+  | "offline"
+  | "connecting"
+  | "listening"
+  | "thinking"
+  | "speaking"
+  | "interrupted"
+  | "error";
 
 export function deriveHeaderStatus(
   connectionStatus: ConnectionStatus,
@@ -19,6 +26,7 @@ const STATUS_STYLES: Record<HeaderStatus, string> = {
   listening: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
   thinking: "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
   speaking: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+  interrupted: "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300",
   error: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
 };
 
@@ -28,6 +36,7 @@ const STATUS_LABELS: Record<HeaderStatus, string> = {
   listening: "Listening",
   thinking: "Thinking",
   speaking: "Speaking",
+  interrupted: "Interrupted",
   error: "Error",
 };
 

@@ -55,11 +55,24 @@ export function useConversationSocket() {
   const hasSpokenRef = useRef(false);
   const playbackQueueRef = useRef<Promise<void>>(Promise.resolve());
   const playbackContextRef = useRef<AudioContext | null>(null);
+  const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const agentStateRef = useRef<AgentStateValue>("listening");
 
   const send = useCallback((message: ClientMessage) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(message));
     }
+  }, []);
+
+  // Real barge-in on the client: stop whatever's currently playing the
+  // instant the user starts talking again, rather than waiting for the
+  // server's "interrupted" frame — that's the practical way to interrupt
+  // audio that has *already* been sent (the server can cancel further
+  // work, but can't un-send bytes already on the wire).
+  const stopPlayback = useCallback(() => {
+    currentSourceRef.current?.stop();
+    currentSourceRef.current = null;
+    playbackQueueRef.current = Promise.resolve();
   }, []);
 
   const playAudio = useCallback(async (base64: string) => {
@@ -80,7 +93,11 @@ export function useConversationSocket() {
           const source = ctx.createBufferSource();
           source.buffer = audioBuffer;
           source.connect(ctx.destination);
-          source.onended = () => resolve();
+          source.onended = () => {
+            if (currentSourceRef.current === source) currentSourceRef.current = null;
+            resolve();
+          };
+          currentSourceRef.current = source;
           source.start();
         }),
     );
@@ -105,6 +122,7 @@ export function useConversationSocket() {
           ]);
           break;
         case "agent_state":
+          agentStateRef.current = message.state;
           setAgentState(message.state);
           break;
         case "tool_call":
@@ -196,6 +214,9 @@ export function useConversationSocket() {
 
       const now = performance.now();
       if (level > SILENCE_RMS_THRESHOLD) {
+        if (agentStateRef.current === "speaking" && currentSourceRef.current) {
+          stopPlayback();
+        }
         hasSpokenRef.current = true;
         silenceStartRef.current = null;
       } else if (hasSpokenRef.current) {
@@ -212,7 +233,7 @@ export function useConversationSocket() {
     source.connect(processor);
     processor.connect(audioContext.destination);
     setIsRecording(true);
-  }, [send]);
+  }, [send, stopPlayback]);
 
   const start = useCallback(async () => {
     setErrorMessage(null);
