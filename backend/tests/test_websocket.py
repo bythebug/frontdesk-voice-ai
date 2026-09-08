@@ -37,6 +37,17 @@ class ScriptedLLM(LLMProvider):
         return response_model(outcome="Call completed.")
 
 
+class CrashingLLM(LLMProvider):
+    """Simulates an unexpected (non-LLMUnavailableError) failure deep in a
+    turn, e.g. a DB connection dropping mid-conversation."""
+
+    async def generate(self, messages, tools=None) -> LLMResponse:
+        raise RuntimeError("simulated unexpected failure")
+
+    async def generate_structured(self, messages, response_model):
+        raise RuntimeError("simulated unexpected failure")
+
+
 def _loud_audio_chunk() -> str:
     samples = (np.ones(800, dtype=np.int16) * 20000).tobytes()
     return base64.b64encode(samples).decode("ascii")
@@ -219,6 +230,30 @@ def test_stt_failure_returns_error_without_crashing_connection() -> None:
         ws.send_text(json.dumps({"type": "user_text", "text": "hi"}))
         transcript = ws.receive_json()
         assert transcript["type"] == "transcript"
+
+
+def test_unexpected_turn_failure_sends_error_and_connection_survives() -> None:
+    # LLMProvider is captured once per connection, so this simulates an
+    # unexpected failure (e.g. a dropped DB connection) that would recur
+    # on every turn — proving the *connection* survives it repeatedly
+    # (no hang, no disconnect) is what matters here, not recovery to a
+    # successful response from the same broken provider.
+    ws_module._llm_provider = CrashingLLM()
+
+    with TestClient(app) as client, client.websocket_connect("/ws/conversation") as ws:
+        ws.receive_json()  # conversation_started
+        ws.receive_json()  # agent_state listening
+
+        for _ in range(2):
+            ws.send_text(json.dumps({"type": "user_text", "text": "hi"}))
+            ws.receive_json()  # transcript user
+            ws.receive_json()  # agent_state thinking
+
+            error = ws.receive_json()
+            assert error["type"] == "error"
+            assert error["message"]
+
+            assert ws.receive_json() == {"type": "agent_state", "state": "listening"}
 
 
 def test_empty_transcript_asks_user_to_repeat() -> None:

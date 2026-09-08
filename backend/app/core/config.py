@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     # WebSocket / audio
     audio_sample_rate: int = 16000
 
+    # Tools
+    tool_timeout_seconds: float = 10.0
+
 
 @lru_cache
 def get_settings() -> Settings:

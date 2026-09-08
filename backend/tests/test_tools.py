@@ -1,9 +1,13 @@
+import asyncio
 from datetime import date, time, timedelta
 
+import pytest
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import app.agent.tool_registry as tool_registry_module
 import app.tools  # noqa: F401 — registers all tools on import
-from app.agent.tool_registry import registry
+from app.agent.tool_registry import ToolRegistry, registry
 from app.db.models import (
     AppointmentType,
     AvailabilitySlot,
@@ -45,6 +49,32 @@ async def test_unknown_tool_returns_error(db_session: AsyncSession) -> None:
     result = await registry.execute("does_not_exist", {}, db_session)
     assert result.success is False
     assert "Unknown tool" in (result.error or "")
+
+
+async def test_tool_execution_times_out(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class SlowInput(BaseModel):
+        pass
+
+    class SlowOutput(BaseModel):
+        ok: bool = True
+
+    local_registry = ToolRegistry()
+
+    @local_registry.register("slow_tool", "A deliberately slow tool.", SlowInput)
+    async def slow_tool(session: AsyncSession, args: SlowInput) -> SlowOutput:
+        await asyncio.sleep(1)
+        return SlowOutput()
+
+    class FakeSettings:
+        tool_timeout_seconds = 0.05
+
+    monkeypatch.setattr(tool_registry_module, "get_settings", lambda: FakeSettings())
+
+    result = await local_registry.execute("slow_tool", {}, db_session)
+    assert result.success is False
+    assert "timed out" in (result.error or "")
 
 
 async def test_lookup_customer_not_found(db_session: AsyncSession) -> None:

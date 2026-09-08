@@ -232,9 +232,27 @@ async def _run_turn(
     work risks corrupting SQLAlchemy's async/greenlet bridge for later
     reuse — self-contained per-turn sessions sidestep that entirely, and
     exiting this `async with` block (including via cancellation) rolls
-    back any uncommitted work from an interrupted turn automatically."""
-    async with session_factory() as session:
-        await _handle_user_text(websocket, session, agent, text)
+    back any uncommitted work from an interrupted turn automatically.
+
+    Nothing else ever awaits this task except cancel_current_turn(), so an
+    unhandled exception here would otherwise just vanish (asyncio logs
+    "Task exception was never retrieved" and the conversation silently
+    hangs) — this is the last line of defense that turns any such failure
+    into a real error frame instead."""
+    try:
+        async with session_factory() as session:
+            await _handle_user_text(websocket, session, agent, text)
+    except Exception as exc:  # noqa: BLE001 — last line of defense for this task
+        logger.error("turn_failed_unexpectedly", extra={"error": str(exc)})
+        try:
+            await _send(
+                websocket,
+                "error",
+                message="Something went wrong processing that. Please try again.",
+            )
+            await _send(websocket, "agent_state", state="listening")
+        except Exception:  # noqa: BLE001 — the socket may already be gone
+            pass
 
 
 async def _handle_user_text(

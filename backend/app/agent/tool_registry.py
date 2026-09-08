@@ -2,12 +2,15 @@
 request one of these registered tools by name with arguments that get
 validated against a Pydantic schema before the handler runs."""
 
+import asyncio
 import time
 from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar, cast
 
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import get_settings
 
 Handler = Callable[[AsyncSession, BaseModel], Awaitable[BaseModel]]
 ModelT = TypeVar("ModelT", bound=BaseModel)
@@ -85,10 +88,17 @@ class ToolRegistry:
                 success=False, error=f"Invalid arguments: {exc}", latency_ms=elapsed_ms()
             )
 
+        timeout = get_settings().tool_timeout_seconds
         try:
-            output = await spec.handler(session, parsed_input)
+            output = await asyncio.wait_for(spec.handler(session, parsed_input), timeout=timeout)
         except ToolExecutionError as exc:
             return ToolResult(success=False, error=str(exc), latency_ms=elapsed_ms())
+        except TimeoutError:
+            return ToolResult(
+                success=False,
+                error=f"Tool '{name}' timed out after {timeout}s.",
+                latency_ms=elapsed_ms(),
+            )
         except Exception as exc:  # noqa: BLE001 — a failing tool must not crash the conversation
             return ToolResult(
                 success=False,
