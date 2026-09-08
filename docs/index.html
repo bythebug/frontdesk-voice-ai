@@ -1,0 +1,768 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FrontDesk Voice AI</title>
+<meta name="description" content="Landing page for a real-time, local-first voice AI support agent — $0/month, no paid APIs, running entirely on your machine.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #F0F1EF;
+    --bg-raised: #FFFFFF;
+    --bg-sunken: #E6E8E3;
+    --border: #D3D6CF;
+    --border-strong: #B7BBB1;
+    --text: #17130F;
+    --text-dim: #63675F;
+    --accent: #B8630A;
+    --accent-glow: rgba(184, 99, 10, 0.18);
+    --on-accent: #FFFDF8;
+    --muted: #3F6152;
+    --code-bg: #E7E8E1;
+    --shadow: 0 1px 2px rgba(23, 19, 15, 0.06);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17130F;
+      --bg-raised: #201A14;
+      --bg-sunken: #120E0A;
+      --border: #362C21;
+      --border-strong: #4B3D2C;
+      --text: #ECE4D6;
+      --text-dim: #9C9182;
+      --accent: #FFB020;
+      --accent-glow: rgba(255, 176, 32, 0.16);
+      --on-accent: #1A1200;
+      --muted: #86AC98;
+      --code-bg: #1B1610;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #17130F;
+    --bg-raised: #201A14;
+    --bg-sunken: #120E0A;
+    --border: #362C21;
+    --border-strong: #4B3D2C;
+    --text: #ECE4D6;
+    --text-dim: #9C9182;
+    --accent: #FFB020;
+    --accent-glow: rgba(255, 176, 32, 0.16);
+    --on-accent: #1A1200;
+    --muted: #86AC98;
+    --code-bg: #1B1610;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3 {
+    font-family: "Fraunces", ui-serif, Georgia, serif;
+    font-weight: 600;
+    text-wrap: balance;
+    margin: 0;
+    color: var(--text);
+  }
+
+  p { margin: 0; color: var(--text-dim); }
+
+  a { color: inherit; }
+
+  code, .mono {
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  img { max-width: 100%; }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 28px;
+  }
+
+  /* ---------- header ---------- */
+
+  header.site {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 20px 0;
+  }
+
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+    text-decoration: none;
+  }
+
+  .brand-mark {
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+    display: inline-block;
+  }
+
+  .brand-word {
+    font-family: "Fraunces", serif;
+    font-weight: 600;
+    font-size: 19px;
+    letter-spacing: -0.01em;
+  }
+
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 26px;
+    font-size: 13.5px;
+  }
+
+  .nav-links a {
+    text-decoration: none;
+    color: var(--text-dim);
+  }
+  .nav-links a:hover { color: var(--text); }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 13.5px;
+    font-weight: 500;
+    text-decoration: none;
+    padding: 9px 15px;
+    border-radius: 3px;
+    border: 1px solid var(--border-strong);
+    white-space: nowrap;
+  }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .btn-primary {
+    background: var(--accent);
+    color: var(--on-accent);
+    border-color: var(--accent);
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--text);
+  }
+  .btn-ghost:hover { border-color: var(--text-dim); }
+
+  .btn svg { width: 14px; height: 14px; flex: none; }
+
+  /* ---------- hero ---------- */
+
+  .hero {
+    padding: 76px 0 60px;
+    display: grid;
+    gap: 40px;
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 18px;
+  }
+
+  .dot-live {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--muted) 22%, transparent);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) { .dot-live { animation: none; } }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+  }
+
+  h1.headline {
+    font-size: clamp(38px, 5.4vw, 60px);
+    line-height: 1.04;
+    letter-spacing: -0.015em;
+    max-width: 14ch;
+  }
+
+  h1.headline em {
+    font-style: italic;
+    color: var(--accent);
+  }
+
+  .sub {
+    font-size: 18px;
+    line-height: 1.6;
+    max-width: 54ch;
+    margin-top: 20px;
+  }
+
+  .hero-ctas {
+    display: flex;
+    gap: 12px;
+    margin-top: 30px;
+    flex-wrap: wrap;
+  }
+
+  .hero-ctas .btn { padding: 12px 20px; font-size: 14px; }
+
+  /* console panel */
+
+  .console {
+    background: var(--bg-sunken);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+
+  .console-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .console-bar .path { color: var(--text-dim); }
+
+  .console-body {
+    padding: 18px 20px 20px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 13px;
+    line-height: 1.9;
+    overflow-x: auto;
+  }
+
+  .console-body .line { white-space: pre; }
+  .arrow-in { color: var(--muted); }
+  .arrow-out { color: var(--accent); }
+  .console-body .field { color: var(--text-dim); }
+  .console-body .val { color: var(--text); }
+  .console-body .ok { color: var(--muted); }
+
+  /* ---------- proof strip ---------- */
+
+  .proof {
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .proof-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1px;
+    background: var(--border);
+  }
+
+  .proof-cell {
+    background: var(--bg);
+    padding: 22px 20px;
+    text-align: center;
+  }
+
+  .proof-cell .num {
+    font-family: "Fraunces", serif;
+    font-size: 26px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .proof-cell .label {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-top: 5px;
+  }
+
+  /* ---------- generic section ---------- */
+
+  section.block {
+    padding: 84px 0;
+    display: grid;
+    gap: 44px;
+  }
+
+  section.block + section.block { border-top: 1px solid var(--border); }
+
+  .kicker {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .section-head { display: grid; gap: 14px; max-width: 640px; }
+  .section-head h2 { font-size: clamp(26px, 3.4vw, 34px); }
+  .section-head p { font-size: 16.5px; }
+
+  /* ---------- pipeline ---------- */
+
+  .pipeline {
+    display: grid;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .pipe-row {
+    display: grid;
+    grid-template-columns: 56px 1fr auto;
+    gap: 18px;
+    align-items: center;
+    padding: 18px 22px;
+    background: var(--bg-raised);
+  }
+  .pipe-row + .pipe-row { border-top: 1px solid var(--border); }
+
+  .pipe-num {
+    font-family: "Fraunces", serif;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text-dim);
+  }
+
+  .pipe-text h3 { font-size: 16.5px; font-weight: 600; margin-bottom: 3px; }
+  .pipe-text p { font-size: 14.5px; }
+
+  .pipe-tag {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    color: var(--muted);
+    border: 1px solid var(--border-strong);
+    border-radius: 3px;
+    padding: 5px 9px;
+    white-space: nowrap;
+  }
+
+  /* ---------- feature grid ---------- */
+
+  .features {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .feature {
+    background: var(--bg-raised);
+    padding: 28px 26px;
+    display: grid;
+    gap: 10px;
+    align-content: start;
+  }
+
+  .feature .mono-tag {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+
+  .feature h3 { font-size: 18px; }
+  .feature p { font-size: 14.5px; }
+
+  /* ---------- incident cards ---------- */
+
+  .incidents { display: grid; gap: 16px; }
+
+  .incident {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-raised);
+    display: grid;
+    grid-template-columns: 128px 1fr;
+  }
+
+  .incident-tag {
+    background: var(--bg-sunken);
+    border-right: 1px solid var(--border);
+    padding: 18px 16px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+  }
+  .incident-tag .n { color: var(--accent); font-weight: 600; font-size: 13px; }
+
+  .incident-body { padding: 18px 22px; display: grid; gap: 8px; }
+  .incident-body h3 { font-size: 15.5px; }
+  .incident-body p { font-size: 14px; }
+  .incident-body .fix { color: var(--muted); }
+  .incident-body .fix b { color: inherit; font-weight: 600; }
+
+  /* ---------- transcript ---------- */
+
+  .call {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-raised);
+    padding: 8px;
+    display: grid;
+    gap: 2px;
+  }
+
+  .call-row {
+    display: grid;
+    grid-template-columns: 74px 1fr;
+    gap: 16px;
+    padding: 13px 16px;
+    border-radius: 4px;
+  }
+
+  .call-row .who {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding-top: 3px;
+  }
+  .call-row.user .who { color: var(--text-dim); }
+  .call-row.agent .who { color: var(--accent); }
+  .call-row.agent { background: var(--code-bg); }
+
+  .call-row .txt { font-size: 15px; }
+  .call-row .tool {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+
+  /* ---------- stack ---------- */
+
+  .stack-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .pill {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 13px;
+    border: 1px solid var(--border-strong);
+    border-radius: 3px;
+    padding: 7px 12px;
+    color: var(--text-dim);
+  }
+
+  /* ---------- footer cta ---------- */
+
+  .closer {
+    padding: 90px 0 100px;
+    text-align: center;
+    display: grid;
+    justify-items: center;
+    gap: 22px;
+    border-top: 1px solid var(--border);
+  }
+
+  .closer h2 { font-size: clamp(28px, 4vw, 40px); max-width: 16ch; }
+  .closer p { font-size: 16px; max-width: 46ch; }
+
+  footer.site {
+    border-top: 1px solid var(--border);
+    padding: 26px 0 40px;
+  }
+
+  .foot-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .foot-row a { text-decoration: underline; text-underline-offset: 3px; }
+
+  @media (max-width: 760px) {
+    .nav-links .hide-sm { display: none; }
+    .proof-row { grid-template-columns: repeat(2, 1fr); }
+    .features { grid-template-columns: 1fr; }
+    .pipe-row { grid-template-columns: 40px 1fr; }
+    .pipe-row .pipe-tag { grid-column: 1 / -1; justify-self: start; margin-top: 6px; }
+    .incident { grid-template-columns: 1fr; }
+    .incident-tag { border-right: none; border-bottom: 1px solid var(--border); flex-direction: row; justify-content: space-between; }
+    .call-row { grid-template-columns: 1fr; gap: 4px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap nav">
+    <a class="brand" href="#top">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-word">FrontDesk Voice&nbsp;AI</span>
+    </a>
+    <nav class="nav-links">
+      <a class="hide-sm" href="#architecture">Architecture</a>
+      <a class="hide-sm" href="#engineering">Engineering notes</a>
+      <a class="hide-sm" href="#stack">Stack</a>
+      <a class="btn btn-ghost" href="https://github.com/bythebug/frontdesk-voice-ai" target="_blank" rel="noopener">
+        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"></path></svg>
+        View code
+      </a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero wrap">
+    <div>
+      <div class="eyebrow"><span class="dot-live" aria-hidden="true"></span>agent_state: listening · running on localhost, not a cloud</div>
+      <h1 class="headline">A front desk that keeps every call <em>on your machine.</em></h1>
+      <p class="sub">Real-time speech in and out, a local LLM that calls real tools, and a Postgres-backed appointment book. It talks to a browser tab, not a usage bill. No OpenAI key, no Twilio number, no monthly invoice.</p>
+      <div class="hero-ctas">
+        <a class="btn btn-primary" href="https://github.com/bythebug/frontdesk-voice-ai" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"></path></svg>
+          View the code
+        </a>
+        <a class="btn btn-ghost" href="#architecture">See the architecture ↓</a>
+      </div>
+    </div>
+
+    <div class="console" role="img" aria-label="Sample WebSocket protocol log from a real conversation">
+      <div class="console-bar">
+        <span class="path">ws://localhost:8000/ws/conversation</span>
+        <span>live capture</span>
+      </div>
+      <div class="console-body">
+<div class="line"><span class="arrow-in">→</span> user_text        <span class="val">"Hi, what are your opening hours?"</span></div>
+<div class="line"><span class="arrow-out">←</span> agent_state      <span class="val">thinking</span></div>
+<div class="line"><span class="arrow-out">←</span> tool_call        <span class="field">search_knowledge_base</span> <span class="val">{ query: "opening hours" }</span></div>
+<div class="line"><span class="arrow-out">←</span> tool_result      <span class="field">search_knowledge_base</span> <span class="ok">✓ success</span></div>
+<div class="line"><span class="arrow-out">←</span> agent_state      <span class="val">speaking</span></div>
+<div class="line"><span class="arrow-out">←</span> transcript       <span class="val">"We're open Monday to Friday, 9 to 5."</span></div>
+<div class="line"><span class="arrow-out">←</span> agent_state      <span class="val">listening</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="proof">
+    <div class="wrap">
+      <div class="proof-row">
+        <div class="proof-cell"><div class="num">$0</div><div class="label">per month</div></div>
+        <div class="proof-cell"><div class="num">0</div><div class="label">paid APIs</div></div>
+        <div class="proof-cell"><div class="num">41</div><div class="label">tests passing</div></div>
+        <div class="proof-cell"><div class="num">8</div><div class="label">typed tools</div></div>
+        <div class="proof-cell"><div class="num">100%</div><div class="label">runs locally</div></div>
+      </div>
+    </div>
+  </div>
+
+  <section class="block wrap" id="architecture">
+    <div class="section-head">
+      <span class="kicker">Architecture</span>
+      <h2>One WebSocket. Five local processes. No round trip leaves your laptop.</h2>
+      <p>The browser never talks to the database or the model directly. Every request goes through FastAPI, which owns all business logic and only exposes a documented WebSocket protocol to the client.</p>
+    </div>
+
+    <div class="pipeline">
+      <div class="pipe-row">
+        <div class="pipe-num">01</div>
+        <div class="pipe-text"><h3>Mic audio streams over WebSocket</h3><p>Browser captures PCM16 and streams it continuously, with no upload and no buffering step.</p></div>
+        <div class="pipe-tag">FastAPI</div>
+      </div>
+      <div class="pipe-row">
+        <div class="pipe-num">02</div>
+        <div class="pipe-text"><h3>Speech becomes text, locally</h3><p>faster-whisper transcribes in a thread pool so the event loop stays free.</p></div>
+        <div class="pipe-tag">faster-whisper</div>
+      </div>
+      <div class="pipe-row">
+        <div class="pipe-num">03</div>
+        <div class="pipe-text"><h3>The agent reasons and calls real tools</h3><p>A local model chooses from a typed, validated tool registry, never arbitrary code.</p></div>
+        <div class="pipe-tag">Ollama</div>
+      </div>
+      <div class="pipe-row">
+        <div class="pipe-num">04</div>
+        <div class="pipe-text"><h3>Tools touch a real database</h3><p>Availability, bookings, and customer records live in Postgres with real transactions.</p></div>
+        <div class="pipe-tag">PostgreSQL</div>
+      </div>
+      <div class="pipe-row">
+        <div class="pipe-num">05</div>
+        <div class="pipe-text"><h3>The reply is spoken back</h3><p>Piper synthesizes speech on the host and streams raw PCM back over the socket.</p></div>
+        <div class="pipe-tag">Piper</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block wrap">
+    <div class="section-head">
+      <span class="kicker">What's actually built</span>
+      <h2>Not a chat demo wearing a microphone.</h2>
+      <p>Every item below is wired end to end and covered by the test suite, not aspirational bullet points.</p>
+    </div>
+
+    <div class="features">
+      <div class="feature">
+        <span class="mono-tag">Tool calling</span>
+        <h3>Typed tools, not free-form code</h3>
+        <p>Eight tools (booking, cancellation, lookup, knowledge search, escalation), each with a Pydantic schema, validation, and structured errors the model can recover from.</p>
+      </div>
+      <div class="feature">
+        <span class="mono-tag">Structured state</span>
+        <h3>State lives in Postgres, not a prompt</h3>
+        <p>Customer, intent, and appointment state persist as real rows. Context sent to the model is windowed and summarized, not the whole transcript every turn.</p>
+      </div>
+      <div class="feature">
+        <span class="mono-tag">Barge-in</span>
+        <h3>Interruption that actually interrupts</h3>
+        <p>Each turn runs as a cancellable task. Real speech mid-response cancels the in-flight turn, rolls back its writes, and the client stops audio already playing.</p>
+      </div>
+      <div class="feature">
+        <span class="mono-tag">Observability</span>
+        <h3>Every call gets a debug timeline</h3>
+        <p>Tool calls, latencies, and a structured summary are persisted per conversation, with a debug page that replays the whole call as an event log.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block wrap" id="engineering">
+    <div class="section-head">
+      <span class="kicker">Engineering notes</span>
+      <h2>Live-tested against the real stack, not just mocks.</h2>
+      <p>Three bugs only showed up when this ran against a real running Ollama and a real Postgres connection: exactly the kind of thing a mocked test suite can't catch. All three are fixed and re-verified live.</p>
+    </div>
+
+    <div class="incidents">
+      <div class="incident">
+        <div class="incident-tag"><span class="n">Incident 01</span>async/greenlet</div>
+        <div class="incident-body">
+          <h3>Cancelling a turn crashed later queries</h3>
+          <p>Two turns sharing one DB session meant cancelling an in-flight task under barge-in corrupted SQLAlchemy's async bridge.</p>
+          <p class="fix"><b>Fix:</b> every turn now opens and closes its own session, cancellation-safe by construction.</p>
+        </div>
+      </div>
+      <div class="incident">
+        <div class="incident-tag"><span class="n">Incident 02</span>prompt format</div>
+        <div class="incident-body">
+          <h3>The model narrated its own role out loud</h3>
+          <p>Tool results sent as a <code>"system"</code> message confused the chat template into echoing a literal <code>"assistant"</code> into replies, which Piper would have spoken aloud.</p>
+          <p class="fix"><b>Fix:</b> tool results are now sent as role <code>"tool"</code>, matching the template's expectations.</p>
+        </div>
+      </div>
+      <div class="incident">
+        <div class="incident-tag"><span class="n">Incident 03</span>race condition</div>
+        <div class="incident-body">
+          <h3>A finished turn interrupted itself</h3>
+          <p>A fast client could react to the final <code>"listening"</code> frame before the server's trailing commit finished, making a done turn look still in-flight.</p>
+          <p class="fix"><b>Fix:</b> the commit now happens before the final state frame is sent, not after.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block wrap">
+    <div class="section-head">
+      <span class="kicker">A real call</span>
+      <h2>Captured from an actual run against Ollama.</h2>
+      <p>Local 8B models are honest about their limits: this one sometimes re-checks a customer record instead of creating one. That's a model-capability note, not a bug in the pipeline.</p>
+    </div>
+
+    <div class="call">
+      <div class="call-row user">
+        <div class="who">User</div>
+        <div class="txt">Hi, my name is Jane Doe. I'd like to book a cleaning for tomorrow afternoon.</div>
+      </div>
+      <div class="call-row agent">
+        <div class="who">Agent</div>
+        <div>
+          <div class="tool">→ lookup_customer("Jane", "Doe")</div>
+          <div class="txt" style="margin-top:6px">Hello Jane! I don't see a patient record for you yet. Before I check availability, can I confirm your name is Jane Doe, and you'd like a cleaning tomorrow afternoon?</div>
+        </div>
+      </div>
+      <div class="call-row user">
+        <div class="who">User</div>
+        <div class="txt">Yes, please book it.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block wrap" id="stack">
+    <div class="section-head">
+      <span class="kicker">Stack</span>
+      <h2>Nothing here needs an API key.</h2>
+      <p>Every layer runs as a local process. Swap the model, swap the voice, keep the architecture.</p>
+    </div>
+    <div class="stack-row">
+      <span class="pill">Python</span>
+      <span class="pill">FastAPI</span>
+      <span class="pill">WebSockets</span>
+      <span class="pill">faster-whisper</span>
+      <span class="pill">Ollama</span>
+      <span class="pill">Piper TTS</span>
+      <span class="pill">PostgreSQL</span>
+      <span class="pill">SQLAlchemy · async</span>
+      <span class="pill">Next.js</span>
+      <span class="pill">TypeScript</span>
+      <span class="pill">React</span>
+      <span class="pill">Tailwind CSS</span>
+    </div>
+  </section>
+
+  <section class="closer wrap">
+    <span class="kicker">Read the source</span>
+    <h2>Every phase, every bug, every decision is in the repo.</h2>
+    <p>13 build phases, a full commit history, and a running project log with the reasoning behind every architectural call, including the ones that changed mid-build.</p>
+    <a class="btn btn-primary" href="https://github.com/bythebug/frontdesk-voice-ai" target="_blank" rel="noopener">
+      <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"></path></svg>
+      github.com/bythebug/frontdesk-voice-ai
+    </a>
+  </section>
+</main>
+
+<footer class="site">
+  <div class="wrap foot-row">
+    <span>FrontDesk Voice AI: a local-first voice support agent, built solo.</span>
+    <a href="https://github.com/bythebug/frontdesk-voice-ai" target="_blank" rel="noopener">Source on GitHub</a>
+  </div>
+</footer>
+
+</body>
+</html>
