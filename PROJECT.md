@@ -299,6 +299,32 @@ From repo root: `make install`, `make dev-backend`, `make dev-frontend`,
   actual Piper speech synthesis (no Piper installed) — both clearly
   flagged, not silently assumed.
 
+## Post-completion additions
+
+Small real additions made after all 13 phases landed, in response to
+user requests — not scope creep, each fills a genuine gap:
+
+- **Text input fallback** (`frontend/src/components/TextFallback.tsx`,
+  wired in `page.tsx`): the backend's `user_text` WebSocket message was
+  fully supported since Phase 5, but the dashboard UI never exposed a
+  control for it — voice was the only input path, and
+  `useConversationSocket`'s `sendText()` was unused dead code. Now there's
+  a simple input + send button, disabled until connected. Live-verified
+  through the real browser dashboard (typed a message, watched a real
+  `lookup_customer` tool call execute and render).
+- **Renamed** from VoiceOps to **FrontDesk Voice AI** (display name;
+  package/repo identifiers use `frontdesk-voice-ai`) per user request —
+  applied everywhere (docs, app title/OpenAPI, frontend header, both
+  package.json/pyproject.toml names, lockfiles regenerated).
+- **Pushed to GitHub**: public repo at
+  `github.com/bythebug/frontdesk-voice-ai`.
+- **Landing page** (`docs/index.html`, served via GitHub Pages at
+  `bythebug.github.io/frontdesk-voice-ai`): a marketing/portfolio page
+  with real content only — a captured live WebSocket log, a real booking
+  transcript, an "engineering notes" section covering the three Phase 9
+  bugs, and two real dashboard screenshots (idle + live states) embedded
+  as base64. Same content also published as a Claude Artifact.
+
 ## Known Issues
 
 - **Docker unverified.** `docker-compose.yml`/Dockerfiles are written per
