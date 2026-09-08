@@ -44,7 +44,7 @@ export function Header({ status }: { status: HeaderStatus }) {
   return (
     <header className="flex items-center justify-between border-b border-neutral-200 px-6 py-4 dark:border-neutral-800">
       <div>
-        <h1 className="text-lg font-semibold tracking-tight">VoiceOps</h1>
+        <h1 className="text-lg font-semibold tracking-tight">FrontDeskAI</h1>
         <p className="text-sm text-neutral-500 dark:text-neutral-400">Real-Time AI Support Agent</p>
       </div>
       <span

@@ -1,4 +1,4 @@
-# VoiceOps — Project Instructions
+# FrontDeskAI — Project Instructions
 
 Portfolio-quality real-time voice AI support agent. See `PROJECT.md` for
 current build state and `README.md` for architecture/setup.

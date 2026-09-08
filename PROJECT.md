@@ -7,7 +7,7 @@ written but unverified, everything else live-verified end-to-end)
 
 ## Project Goal
 
-Build **VoiceOps**: a portfolio-quality, real-time voice AI support agent
+Build **FrontDeskAI**: a portfolio-quality, real-time voice AI support agent
 for a fictional dental clinic. Browser-based mic in, WebSocket to a FastAPI
 backend, local speech-to-text (faster-whisper), local LLM tool-calling
 (Ollama) against a real tool registry (appointments, customers, knowledge
@@ -382,7 +382,7 @@ live end-to-end runs against real Postgres + Ollama + faster-whisper.
 
 ## Handoff Notes
 
-1. **What are we building?** VoiceOps — a local-only, real-time voice AI
+1. **What are we building?** FrontDeskAI — a local-only, real-time voice AI
    support agent, built as a 13-phase portfolio project. All 13 phases
    are complete. Durable constraints/decisions live in `CLAUDE.md` and
    this file.

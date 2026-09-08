@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # App
-    app_name: str = "VoiceOps"
+    app_name: str = "FrontDeskAI"
     log_level: str = "INFO"
     environment: str = "development"
 
