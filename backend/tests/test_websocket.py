@@ -1,6 +1,8 @@
+import asyncio
 import base64
 import json
 
+import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -14,19 +16,30 @@ from tests.conftest import TEST_DATABASE_URL
 
 
 class ScriptedLLM(LLMProvider):
-    def __init__(self, responses: list[LLMResponse]) -> None:
+    def __init__(self, responses: list[LLMResponse], delay: float = 0.0) -> None:
         self.responses = responses
+        self.delay = delay
         self.call_count = 0
 
     async def generate(self, messages, tools=None) -> LLMResponse:
+        # Claim this call's response before sleeping — if this call gets
+        # cancelled mid-sleep (barge-in), the *next* call still advances
+        # rather than replaying the same response.
         response = self.responses[self.call_count]
         self.call_count += 1
+        if self.delay:
+            await asyncio.sleep(self.delay)
         return response
 
     async def generate_structured(self, messages, response_model):
         # Only SummaryContent is ever requested (end_conversation's summary
         # generation) — a minimal valid instance is enough for these tests.
         return response_model(outcome="Call completed.")
+
+
+def _loud_audio_chunk() -> str:
+    samples = (np.ones(800, dtype=np.int16) * 20000).tobytes()
+    return base64.b64encode(samples).decode("ascii")
 
 
 class FakeSTT(SpeechToText):
@@ -241,3 +254,59 @@ def test_end_conversation_closes_with_confirmation() -> None:
             "type": "conversation_ended",
             "conversation_id": started["conversation_id"],
         }
+
+
+def test_barge_in_interrupts_in_flight_turn_and_new_turn_still_works() -> None:
+    # Delay every call generously — barge-in can land during the agent's DB
+    # work before the LLM is even reached, or during the LLM call itself;
+    # either is a legitimate interruption point, so the response content
+    # itself (not which call index survives) isn't what this test checks.
+    ws_module._llm_provider = ScriptedLLM(
+        [LLMResponse(content="a response"), LLMResponse(content="a response")], delay=0.3
+    )
+
+    with TestClient(app) as client, client.websocket_connect("/ws/conversation") as ws:
+        ws.receive_json()  # conversation_started
+        ws.receive_json()  # agent_state listening
+
+        ws.send_text(json.dumps({"type": "user_text", "text": "first message"}))
+        assert ws.receive_json()["text"] == "first message"
+        assert ws.receive_json() == {"type": "agent_state", "state": "thinking"}
+
+        # The first turn is still in flight. Loud audio arriving now is a
+        # real barge-in signal, not routine mic noise.
+        ws.send_text(json.dumps({"type": "audio_chunk", "data": _loud_audio_chunk()}))
+
+        assert ws.receive_json() == {"type": "agent_state", "state": "interrupted"}
+        assert ws.receive_json() == {"type": "agent_state", "state": "listening"}
+
+        # A fresh turn starts cleanly after the interruption — no crash, no
+        # leftover frames from the cancelled one, normal state sequence.
+        ws.send_text(json.dumps({"type": "user_text", "text": "second message"}))
+        assert ws.receive_json()["text"] == "second message"
+        assert ws.receive_json() == {"type": "agent_state", "state": "thinking"}
+        assert ws.receive_json() == {"type": "agent_state", "state": "speaking"}
+        transcript = ws.receive_json()
+        assert transcript["speaker"] == "agent"
+        assert transcript["text"] == "a response"
+        assert ws.receive_json() == {"type": "agent_state", "state": "listening"}
+
+
+def test_quiet_audio_chunk_during_a_turn_does_not_interrupt() -> None:
+    ws_module._llm_provider = ScriptedLLM([LLMResponse(content="a response")], delay=0.2)
+
+    with TestClient(app) as client, client.websocket_connect("/ws/conversation") as ws:
+        ws.receive_json()  # conversation_started
+        ws.receive_json()  # agent_state listening
+
+        ws.send_text(json.dumps({"type": "user_text", "text": "hello"}))
+        ws.receive_json()  # transcript user
+        assert ws.receive_json() == {"type": "agent_state", "state": "thinking"}
+
+        silent = base64.b64encode(np.zeros(800, dtype=np.int16).tobytes()).decode("ascii")
+        ws.send_text(json.dumps({"type": "audio_chunk", "data": silent}))
+
+        # No interruption — the turn runs to completion normally.
+        assert ws.receive_json() == {"type": "agent_state", "state": "speaking"}
+        transcript = ws.receive_json()
+        assert transcript["text"] == "a response"

@@ -2,9 +2,8 @@
 tool execution -> LLM response. The only module that wires state.py,
 prompts.py, llm_provider.py, and tool_registry.py together.
 
-Tool results are fed back to the LLM as system messages (rather than a
-dedicated "tool" role) so no DB schema change was needed for
-MessageSpeaker — a deliberate simplification, not a missing feature.
+Tool results are persisted as MessageSpeaker.SYSTEM (no DB schema change
+needed) but sent to the LLM as role "tool" — see prompts.py.
 """
 
 import time

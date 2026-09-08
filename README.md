@@ -177,10 +177,25 @@ Agent: You're booked for Friday at 2:30 PM. You'll get a confirmation.
 
 ## Known limitations
 
-- True low-latency streaming interruption (stopping TTS mid-sentence the
-  instant the user's voice is detected) is constrained by local-model
-  latency; the implementation and its tradeoffs will be documented in
-  Phase 9.
+- **Interruption/barge-in** is real, not simulated: each conversational
+  turn runs as a cancellable `asyncio.Task`, so the server can keep
+  listening while a response is in flight. When real speech (checked via
+  a simple RMS threshold, not a full VAD model) arrives mid-turn, the
+  in-flight task is cancelled, its uncommitted DB writes are rolled back,
+  and the client immediately stops any audio it's currently playing.
+  The one thing that can't be undone is frames already sent over the
+  wire — once a turn's `"audio"` message has actually reached the
+  browser, cancellation can't retroactively un-send it. In practice this
+  means interruption is most effective during the "thinking"/
+  "calling_tool" phase (most of a local LLM's latency), which is also
+  where it matters most.
+- **Tool-use reliability depends on the chosen Ollama model.** `llama3.1:8b`
+  (an 8B model) sometimes loops on a tool (e.g., re-calling
+  `lookup_customer` instead of proceeding to `create_customer`) rather
+  than completing a multi-step booking flow. This is a model-capability
+  limitation, not an architecture bug — verified by exercising the real
+  pipeline end-to-end against live Ollama, not just mocks. A larger or
+  more tool-tuned model would likely follow the flow more reliably.
 - Single-process backend: no horizontal scaling story (out of scope for a
   portfolio project).
 

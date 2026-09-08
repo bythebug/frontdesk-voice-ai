@@ -51,10 +51,15 @@ def _state_summary(state: ConversationState) -> str:
 def build_messages(
     state: ConversationState, recent_messages: list[Message]
 ) -> list[dict[str, str]]:
+    # MessageSpeaker.SYSTEM is only ever used for tool results (see
+    # agent.py) — mapped to Ollama's "tool" role, not "system", so the
+    # chat template doesn't confuse the model about whose turn it is.
+    # Sending tool output as a literal "system" message caused Ollama to
+    # echo a stray "assistant\n\n" role label into its own response.
     role_map = {
         MessageSpeaker.USER: "user",
         MessageSpeaker.AGENT: "assistant",
-        MessageSpeaker.SYSTEM: "system",
+        MessageSpeaker.SYSTEM: "tool",
     }
     windowed = recent_messages[-_HISTORY_WINDOW:]
     messages = [
