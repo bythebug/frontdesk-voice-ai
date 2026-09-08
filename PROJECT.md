@@ -2,7 +2,7 @@
 
 ## Last Verified
 
-2026-09-08 (this session — Phase 1 and Phase 2 complete and committed)
+2026-09-08 (this session — Phases 1–3 complete and committed)
 
 ## Project Goal
 
@@ -68,8 +68,9 @@ software/AI engineering resume.
 
 ## Current Status
 
-**PARTIALLY COMPLETE** — Phases 1–2 of 13 done, verified, and committed.
-Phases 3–13 NOT STARTED.
+**PARTIALLY COMPLETE** — Phases 1–3 of 13 done, verified, and committed.
+Phases 4–13 NOT STARTED. Phase 4 is blocked on the user's decision about
+installing Ollama + pulling a model (see Blockers/Next Task).
 
 ## Completed
 
@@ -187,6 +188,48 @@ Committed as `7ce8b5a`.
 
 Committed as `c69f895`.
 
+### Phase 3 — Appointment/customer/knowledge tools
+
+- `backend/app/agent/tool_registry.py`: generic `ToolRegistry` with a
+  `@registry.register(name, description, input_model)` decorator. Each
+  handler's own type signature is checked against its specific
+  input/output Pydantic models (via `TypeVar`s), with an internal `cast`
+  at the point the registry stores it uniformly — works around
+  `Callable` parameter contravariance without losing type safety on the
+  tool-author-facing side. `execute()` validates arguments, catches
+  `ToolExecutionError` (expected, user-facing failures) and any other
+  exception (so one broken tool can't crash the conversation), and
+  returns a structured `ToolResult(success, data, error, latency_ms)`.
+  `schemas()` produces OpenAI/Ollama-compatible function-calling schemas
+  for Phase 4.
+- 8 tools implemented in `backend/app/tools/`: `lookup_customer`,
+  `create_customer` (customers.py — `create_customer` wasn't in the
+  spec's example list but is needed for the booking flow to work when a
+  patient isn't found); `check_availability`, `book_appointment`,
+  `cancel_appointment` (appointments.py — booking/cancelling both require
+  an explicit `confirmed: true` input, enforced in the tool itself, not
+  just in a future agent prompt; `book_appointment` uses Phase 2's atomic
+  `try_book()` so a losing race returns a clear error instead of
+  double-booking); `search_knowledge_base` (knowledge.py); `send_confirmation`,
+  `transfer_to_human` (notifications.py — simulated, logged, not a fake
+  "sent" claim; `transfer_to_human` sets `Conversation.status =
+  ESCALATED`).
+- Known simplification (documented in `appointments.py`'s module
+  docstring): every appointment consumes exactly one 30-minute slot
+  regardless of `appointment_type.duration_minutes` — no multi-slot
+  allocation for longer procedures.
+- 8 new tests in `backend/tests/test_tools.py` (18 total across the
+  suite): unknown tool, invalid arguments, not-found cases, full
+  check→book→cancel flow, double-booking rejection, confirmation
+  enforcement on both book and cancel, re-cancelling an already-cancelled
+  appointment, KB search, escalation.
+- Verification: `uv run pytest -q` → 18 passed. `uv run ruff check .` →
+  clean. `uv run mypy app` → clean (20 source files). Manually verified
+  `registry.schemas()` produces valid tool-calling JSON schema for all 8
+  tools.
+
+Committed as `61a91c4`.
+
 Phase 1 and Phase 2 are both committed (`7ce8b5a`, `c69f895`).
 
 ## In Progress
@@ -195,40 +238,38 @@ Nothing mid-flight.
 
 ## Next Task
 
-Begin **Phase 3 — Appointment/customer/knowledge tools**:
+Begin **Phase 4 — Agent engine + structured state + Ollama integration**.
+This needs Ollama installed and a model pulled first (multi-GB download —
+flagged to the user rather than done unilaterally; see Blockers). Once
+Ollama is available:
 
-- Build the typed tool registry (`backend/app/agent/tool_registry.py`) and
-  the actual tool implementations in `backend/app/tools/`:
-  `lookup_customer`, `check_availability`, `book_appointment`,
-  `cancel_appointment`, `search_knowledge_base`, `send_confirmation`,
-  `transfer_to_human`.
-- Each tool: name, description, Pydantic input schema, validation,
-  execution (delegating to the Phase 2 repositories — don't reimplement
-  DB access in the tools layer), structured result, error handling. No
-  direct arbitrary-function execution from the LLM (see `CLAUDE.md`).
-- `book_appointment` must require the caller to have already confirmed —
-  this phase should establish the tool-level contract for that (the
-  confirmation *flow* itself is Phase 4's agent state machine; here it's
-  about the tool refusing to book without an explicit `confirmed: true`-
-  style input, so Phase 4 has something real to call).
-- `transfer_to_human` sets `Conversation.status = ESCALATED` via
-  `ConversationRepository.set_status`.
-- Unit tests per tool: valid input, invalid input, not-found cases,
-  double-booking rejection, cancellation of an already-cancelled
-  appointment, etc. Reuse the `db_session` fixture from
-  `tests/conftest.py`.
-- `send_confirmation` is a notification, not a DB write — Phase 3 spec
-  calls for `tools/notifications.py`; since there's no real email/SMS
-  provider (no paid APIs), implement it as a logged/simulated
-  confirmation (structured log entry), consistent with how
-  `transfer_to_human` simulates escalation. Don't fake it as if a real
-  message was sent — log it plainly as simulated.
+- `backend/app/agent/state.py`: `ConversationState` (structured, not a
+  prompt blob) — conversation_id, customer_id, intent, appointment_date,
+  appointment_type, current_step, awaiting_confirmation, etc. Persist the
+  parts that matter in Postgres (Phase 2's `conversations`/`messages`
+  tables already exist for this).
+- `backend/app/agent/prompts.py`: system prompt + prompt-building
+  functions. Keep this separate from orchestration logic.
+- LLM abstraction (likely `backend/app/agent/llm_provider.py` or similar,
+  not explicitly listed in the original suggested tree but needed per the
+  spec's `LLMProvider` interface): `generate()` / `generate_structured()`
+  over Ollama's HTTP API via `httpx` (no new dependency). Model name from
+  `Settings.ollama_model` (already in `core/config.py`) — never
+  hardcoded.
+- `backend/app/agent/planner.py` / `agent.py`: the actual decision loop —
+  conversation state → LLM (with `registry.schemas()` as available
+  tools) → tool selection → `registry.execute()` (Phase 3, already
+  validates + catches errors) → result → LLM response. Context
+  management: don't dump the entire message history into every request
+  (per spec) — decide a sensible windowing/summarization strategy.
+- Tests: mock the LLM (don't require live Ollama for the test suite) to
+  test state transitions, tool-selection flow, and context management in
+  isolation — consistent with `CLAUDE.md`'s testing requirements.
 
 ## Remaining Work
 
 ### Required (per the 13-phase plan)
 
-- Phase 3: Appointment/customer/knowledge tools (typed tool registry).
 - Phase 4: Agent engine + structured state + Ollama integration.
 - Phase 5: WebSocket communication + documented message protocol.
 - Phase 6: Speech-to-text (faster-whisper abstraction).
@@ -392,10 +433,15 @@ active local-dev path).
 
 ## Blockers
 
-None currently. Phase 4 (Ollama) will need Ollama installed
-(`brew install ollama` + `ollama pull <model>`) and Phase 7 (Piper) will
-need Piper installed — neither is installed yet; flag to the user before
-those phases if still missing.
+**Phase 4 is blocked pending a user decision on Ollama.** Ollama isn't
+installed. Installing it (`brew install ollama`) is low-risk/reversible,
+but pulling a model (`ollama pull <model>`) is a multi-GB download and
+the right model choice depends on the user's machine (RAM/disk) — this
+session paused rather than picking a model and downloading it
+unilaterally. Ask the user: install Ollama + which model (e.g.
+`llama3.1:8b` ~4.9GB, or a smaller one), or do they already have Ollama
+set up elsewhere. Phase 7 will need Piper installed too — not yet asked
+about, lower priority than Phase 4.
 
 ## Files and Components
 
@@ -409,9 +455,12 @@ those phases if still missing.
 | `backend/app/db/repositories.py` | Data-access layer for all entities | Implemented, tested |
 | `backend/app/db/seed.py` | Fictional clinic seed data | Implemented, verified, idempotent |
 | `backend/migrations/` | Alembic async migrations | Implemented, round-trip verified |
-| `backend/app/{api,agent,voice,tools,services}/` | Fixed package layout for future phases | Structure only |
+| `backend/app/agent/tool_registry.py` | Typed tool registry + execution | Implemented, tested |
+| `backend/app/tools/` | 8 tool implementations | Implemented, tested |
+| `backend/app/{api,agent/state.py,agent/prompts.py,agent/planner.py,agent/agent.py,voice,services}/` | Fixed layout for Phase 4+ | Structure only |
 | `backend/tests/test_health.py` | Health endpoint test | Implemented, passing |
 | `backend/tests/test_repositories.py` | Repository layer tests (10) | Implemented, passing |
+| `backend/tests/test_tools.py` | Tool layer tests (8) | Implemented, passing |
 | `backend/tests/conftest.py` | Test DB fixtures | Implemented |
 | `frontend/` | Next.js dashboard | Default template only |
 | `docker-compose.yml` | Local Postgres (alt. to native Homebrew) | Implemented, unverified (no Docker) |
@@ -457,6 +506,23 @@ those phases if still missing.
   upgrade) verified live, seed idempotency verified.
 - Remaining: everything in Remaining Work above. Phase 3 is next.
 
+### 2026-09-08 — Session 1 (cont'd): Phase 3
+
+- What changed: Built the typed tool registry and all 8 tools (customer
+  lookup/creation, availability/booking/cancellation, KB search,
+  confirmation/escalation), each with Pydantic validation, structured
+  results, and error handling that can't crash the conversation. Solved
+  a real mypy variance issue in the registry's generic decorator. Added
+  8 tests (18 total in the suite).
+- Why: Continuation of the phased build; this phase needed no new
+  environment decisions (built entirely on Phase 2's repositories).
+- Verification: 18/18 tests passing against live Postgres, ruff/mypy
+  clean, manually confirmed `registry.schemas()` output is valid
+  tool-calling JSON schema.
+- Remaining: everything in Remaining Work above. Paused here — Phase 4
+  needs an Ollama install + model pull decision from the user before
+  proceeding (see Blockers).
+
 ## Handoff Notes
 
 1. **What are we building?** VoiceOps — a local-only, real-time voice AI
@@ -465,26 +531,27 @@ those phases if still missing.
    13-phase portfolio project. Full spec is in the original user request;
    the durable constraints/decisions distilled from it live in `CLAUDE.md`
    and this file's Requirements/Important Decisions sections.
-2. **Where are we now?** Phases 1–2 are done, verified, and committed
-   (`7ce8b5a`, `c69f895`) as of the end of this session (check `git log`/
-   `git status` to confirm current state — don't trust this line blindly
-   if time has passed).
-3. **What was most recently completed?** Phase 2: full DB layer (models,
-   async session, Alembic migrations with a verified round-trip,
-   repositories covering every op Phase 3 needs, seed data, 10 passing
-   tests) against a live local Postgres.
-4. **What remains?** Phases 3–13, in order — see Remaining Work. Phase 3
-   (typed tool registry + tool implementations) is next; the Next Task
-   section above has specifics on what each tool needs.
-5. **What should happen next?** Implement Phase 3. Ollama needs to be
-   installed (`brew install ollama` + `ollama pull <model>`) before
-   Phase 4, and Piper before Phase 7 — flag to the user if still missing
-   when those phases start.
+2. **Where are we now?** Phases 1–3 are done, verified, and committed
+   (`7ce8b5a`, `c69f895`, `61a91c4`) as of the end of this session (check
+   `git log`/`git status` to confirm current state — don't trust this
+   line blindly if time has passed).
+3. **What was most recently completed?** Phase 3: typed tool registry +
+   8 tools (customer lookup/create, availability/booking/cancellation,
+   KB search, confirmation/escalation), 18 passing tests total.
+4. **What remains?** Phases 4–13, in order — see Remaining Work. Phase 4
+   (agent engine + Ollama) is next; the Next Task section above has
+   specifics.
+5. **What should happen next?** Phase 4 needs Ollama installed
+   (`brew install ollama`) and a model pulled (`ollama pull <model>` —
+   multi-GB download). This session deliberately paused instead of
+   picking a model and downloading it unilaterally — ask the user which
+   model / confirm before installing, then implement Phase 4. Piper is
+   needed before Phase 7 — flag if still missing when that phase starts.
 6. **What must the next Claude be careful about?**
    - Don't re-scaffold what already exists — check `git log` and this file
-     first. The DB layer, repositories, and seed data are done; Phase 3
-     should build tools that call the existing repositories, not
-     reimplement data access.
+     first. The DB layer, repositories, seed data, and tool registry are
+     done; Phase 4's agent should call `registry.execute()` and the
+     Phase 2 repositories, not reimplement either.
    - Don't mark a phase complete without actually running its
      tests/lint/verification (see `CLAUDE.md` Required Commands) — this
      session caught a real migration bug (orphaned enum types on
