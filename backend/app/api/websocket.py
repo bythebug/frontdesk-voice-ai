@@ -4,7 +4,8 @@ exchanges these JSON messages.
 
 Client -> server:
   {"type": "user_text", "text": "..."}          direct text input
-  {"type": "audio_chunk", "data": "<base64>"}    mic audio (wired in Phase 6/7)
+  {"type": "audio_chunk", "data": "<base64>"}    raw 16-bit PCM mono audio, buffered server-side
+  {"type": "audio_end"}                          user stopped speaking — transcribe the buffer
   {"type": "end_conversation"}
 
 Server -> client:
@@ -13,11 +14,12 @@ Server -> client:
   {"type": "agent_state", "state": "listening"|"thinking"|"calling_tool"|"speaking"}
   {"type": "tool_call", "tool": "...", "arguments": {...}}
   {"type": "tool_result", "tool": "...", "success": bool, "data": {...}|null, "error": str|null}
-  {"type": "audio", "data": "<base64>"}          synthesized speech (Phase 7)
+  {"type": "audio", "data": "<base64>"}          synthesized speech (raw 16-bit PCM)
   {"type": "conversation_ended", "conversation_id": "..."}
   {"type": "error", "message": "..."}
 """
 
+import binascii
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -31,18 +33,23 @@ from app.agent.state import ConversationState
 from app.core.logging import get_logger
 from app.db.database import get_sessionmaker
 from app.db.repositories import ConversationRepository
+from app.voice.audio import decode_audio_chunk, encode_audio_chunk
+from app.voice.stt import FasterWhisperSTT, SpeechToText, SttUnavailableError
+from app.voice.tts import PiperTTS, TextToSpeech, TtsUnavailableError
 
 logger = get_logger(__name__)
 router = APIRouter()
 
-# Module-level so tests can swap in a fake LLM without a live Ollama —
+# Module-level so tests can swap in fakes without live Ollama/Whisper/Piper —
 # referenced by (dynamic) name inside the handler below, not captured at
-# import time, so monkeypatching this attribute takes effect.
+# import time, so monkeypatching these attributes takes effect.
 _llm_provider: LLMProvider = OllamaProvider()
+_stt: SpeechToText = FasterWhisperSTT()
+_tts: TextToSpeech = PiperTTS()
 
 
 class ClientMessage(BaseModel):
-    type: Literal["user_text", "audio_chunk", "end_conversation"]
+    type: Literal["user_text", "audio_chunk", "audio_end", "end_conversation"]
     text: str | None = None
     data: str | None = None
 
@@ -73,6 +80,7 @@ async def conversation_ws(websocket: WebSocket) -> None:
 
         state = ConversationState(conversation_id=conversation.id)
         agent = ConversationAgent(_llm_provider, state)
+        audio_buffer = bytearray()
 
         await _send(websocket, "conversation_started", conversation_id=str(conversation.id))
         await _send(websocket, "agent_state", state="listening")
@@ -94,12 +102,42 @@ async def conversation_ws(websocket: WebSocket) -> None:
                     await session.commit()
 
                 elif message.type == "audio_chunk":
-                    await _send(
-                        websocket,
-                        "error",
-                        message="Audio input isn't wired up yet — use user_text for now "
-                        "(speech-to-text lands in Phase 6).",
-                    )
+                    if not message.data:
+                        await _send(websocket, "error", message="audio_chunk requires 'data'")
+                        continue
+                    try:
+                        audio_buffer.extend(decode_audio_chunk(message.data))
+                    except (binascii.Error, ValueError):
+                        await _send(
+                            websocket, "error", message="audio_chunk 'data' isn't valid base64"
+                        )
+
+                elif message.type == "audio_end":
+                    if not audio_buffer:
+                        await _send(websocket, "error", message="No audio received yet.")
+                        continue
+                    try:
+                        text = await _stt.transcribe(bytes(audio_buffer))
+                    except SttUnavailableError as exc:
+                        logger.error(
+                            "stt_unavailable",
+                            extra={"conversation_id": str(conversation.id), "error": str(exc)},
+                        )
+                        await _send(
+                            websocket,
+                            "error",
+                            message="Speech recognition failed. Please try again.",
+                        )
+                        audio_buffer.clear()
+                        continue
+                    audio_buffer.clear()
+                    if not text:
+                        await _send(
+                            websocket, "error", message="Didn't catch that — could you repeat?"
+                        )
+                        continue
+                    await _handle_user_text(websocket, session, agent, text)
+                    await session.commit()
 
                 elif message.type == "end_conversation":
                     await conv_repo.end(conversation.id)
@@ -137,5 +175,13 @@ async def _handle_user_text(
     await _send(
         websocket, "transcript", speaker="agent", text=result.response_text, timestamp=_now()
     )
-    # Phase 7 adds a real "audio" message with synthesized speech here.
+
+    try:
+        audio = await _tts.synthesize(result.response_text)
+    except TtsUnavailableError as exc:
+        logger.error("tts_unavailable", extra={"error": str(exc)})
+        audio = b""
+    if audio:
+        await _send(websocket, "audio", data=encode_audio_chunk(audio))
+
     await _send(websocket, "agent_state", state="listening")

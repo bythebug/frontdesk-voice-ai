@@ -1,3 +1,4 @@
+import base64
 import json
 
 import pytest
@@ -8,6 +9,7 @@ import app.api.websocket as ws_module
 import app.tools  # noqa: F401 — registers tools
 from app.agent.llm_provider import LLMProvider, LLMResponse, ToolCallRequest
 from app.main import app
+from app.voice.stt import SpeechToText, SttUnavailableError
 from tests.conftest import TEST_DATABASE_URL
 
 
@@ -23,6 +25,19 @@ class ScriptedLLM(LLMProvider):
 
     async def generate_structured(self, messages, response_model):
         raise NotImplementedError
+
+
+class FakeSTT(SpeechToText):
+    def __init__(self, transcript: str = "", raise_error: bool = False) -> None:
+        self.transcript = transcript
+        self.raise_error = raise_error
+        self.received_audio: bytes | None = None
+
+    async def transcribe(self, audio: bytes) -> str:
+        self.received_audio = audio
+        if self.raise_error:
+            raise SttUnavailableError("model failed to load")
+        return self.transcript
 
 
 @pytest.fixture(autouse=True)
@@ -115,17 +130,95 @@ def test_invalid_message_returns_error_and_keeps_connection_open() -> None:
         assert transcript["type"] == "transcript"
 
 
-def test_audio_chunk_returns_not_yet_supported_error() -> None:
+def test_malformed_audio_chunk_returns_error_without_crashing() -> None:
     ws_module._llm_provider = ScriptedLLM([LLMResponse(content="ok")])
 
     with TestClient(app) as client, client.websocket_connect("/ws/conversation") as ws:
         ws.receive_json()  # conversation_started
         ws.receive_json()  # agent_state listening
 
-        ws.send_text(json.dumps({"type": "audio_chunk", "data": "abc123"}))
+        ws.send_text(json.dumps({"type": "audio_chunk", "data": "not valid base64!!"}))
         error = ws.receive_json()
         assert error["type"] == "error"
-        assert "Phase 6" in error["message"]
+
+        # Connection survives.
+        ws.send_text(json.dumps({"type": "user_text", "text": "hi"}))
+        transcript = ws.receive_json()
+        assert transcript["type"] == "transcript"
+
+
+def test_audio_chunk_then_end_transcribes_and_drives_agent() -> None:
+    ws_module._llm_provider = ScriptedLLM([LLMResponse(content="We're open 9 to 5.")])
+    fake_stt = FakeSTT(transcript="What are your hours?")
+    ws_module._stt = fake_stt
+
+    audio_bytes = b"\x01\x02\x03\x04"
+    with TestClient(app) as client, client.websocket_connect("/ws/conversation") as ws:
+        ws.receive_json()  # conversation_started
+        ws.receive_json()  # agent_state listening
+
+        ws.send_text(
+            json.dumps(
+                {"type": "audio_chunk", "data": base64.b64encode(audio_bytes).decode("ascii")}
+            )
+        )
+        ws.send_text(json.dumps({"type": "audio_end"}))
+
+        transcript_user = ws.receive_json()
+        assert transcript_user["type"] == "transcript"
+        assert transcript_user["speaker"] == "user"
+        assert transcript_user["text"] == "What are your hours?"
+
+    assert fake_stt.received_audio == audio_bytes
+
+
+def test_audio_end_with_no_chunks_is_an_error() -> None:
+    ws_module._llm_provider = ScriptedLLM([LLMResponse(content="ok")])
+    ws_module._stt = FakeSTT(transcript="hello")
+
+    with TestClient(app) as client, client.websocket_connect("/ws/conversation") as ws:
+        ws.receive_json()  # conversation_started
+        ws.receive_json()  # agent_state listening
+
+        ws.send_text(json.dumps({"type": "audio_end"}))
+        error = ws.receive_json()
+        assert error["type"] == "error"
+        assert "No audio" in error["message"]
+
+
+def test_stt_failure_returns_error_without_crashing_connection() -> None:
+    ws_module._llm_provider = ScriptedLLM([LLMResponse(content="ok")])
+    ws_module._stt = FakeSTT(raise_error=True)
+
+    with TestClient(app) as client, client.websocket_connect("/ws/conversation") as ws:
+        ws.receive_json()  # conversation_started
+        ws.receive_json()  # agent_state listening
+
+        ws.send_text(json.dumps({"type": "audio_chunk", "data": base64.b64encode(b"x").decode()}))
+        ws.send_text(json.dumps({"type": "audio_end"}))
+        error = ws.receive_json()
+        assert error["type"] == "error"
+        assert "Speech recognition failed" in error["message"]
+
+        # Connection survives — can still use text.
+        ws.send_text(json.dumps({"type": "user_text", "text": "hi"}))
+        transcript = ws.receive_json()
+        assert transcript["type"] == "transcript"
+
+
+def test_empty_transcript_asks_user_to_repeat() -> None:
+    ws_module._llm_provider = ScriptedLLM([LLMResponse(content="ok")])
+    ws_module._stt = FakeSTT(transcript="")  # silence / no speech detected
+
+    with TestClient(app) as client, client.websocket_connect("/ws/conversation") as ws:
+        ws.receive_json()  # conversation_started
+        ws.receive_json()  # agent_state listening
+
+        ws.send_text(json.dumps({"type": "audio_chunk", "data": base64.b64encode(b"x").decode()}))
+        ws.send_text(json.dumps({"type": "audio_end"}))
+        error = ws.receive_json()
+        assert error["type"] == "error"
+        assert "repeat" in error["message"].lower()
 
 
 def test_end_conversation_closes_with_confirmation() -> None:
