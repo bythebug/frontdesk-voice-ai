@@ -1,0 +1,26 @@
+# Env
+.env
+.env.local
+
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / Next.js — see frontend/.gitignore for the rest
+frontend/node_modules/
+
+# Voice models (large binary files, downloaded per README instructions)
+voice-models/
+*.onnx
+*.bin
+
+# OS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/

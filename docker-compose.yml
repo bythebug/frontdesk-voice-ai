@@ -1,0 +1,24 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: voiceops
+      POSTGRES_PASSWORD: voiceops
+      POSTGRES_DB: voiceops
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voiceops -d voiceops"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+
+# Backend and frontend run natively during development (see README) so they
+# can reach the host's Ollama/Piper processes and your microphone/browser
+# without extra networking config. Containerized app images ship in a later
+# phase once the full pipeline is verified end-to-end.
