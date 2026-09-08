@@ -16,6 +16,15 @@ export type ServerMessage =
       error: string | null;
     }
   | { type: "audio"; data: string }
+  | {
+      type: "call_summary";
+      intent: string | null;
+      customer_name: string | null;
+      appointment: { date: string; time: string } | null;
+      issue: string | null;
+      outcome: string;
+      tools_used: string[];
+    }
   | { type: "conversation_ended"; conversation_id: string }
   | { type: "error"; message: string };
 

@@ -132,6 +132,12 @@ npm run dev
 # → http://localhost:3000
 ```
 
+The frontend's `NEXT_PUBLIC_WS_URL`/`NEXT_PUBLIC_API_URL` default to
+`localhost:8000` in code, matching the backend defaults above — no `.env`
+needed unless you're pointing at a different backend host. If you do,
+create `frontend/.env.local` (Next.js reads env files from `frontend/`,
+not the repo root) with those two vars.
+
 Or from the repo root: `make install`, `make dev-backend`, `make dev-frontend`.
 
 ## Example conversation

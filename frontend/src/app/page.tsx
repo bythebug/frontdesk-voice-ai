@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
 import { AgentStateIndicator } from "@/components/AgentStateIndicator";
-import type { CallSummaryData } from "@/components/CallSummaryPanel";
 import { CallSummaryPanel } from "@/components/CallSummaryPanel";
 import { ConversationPanel } from "@/components/ConversationPanel";
 import { deriveHeaderStatus, Header } from "@/components/Header";
@@ -19,12 +18,11 @@ export default function Home() {
     isRecording,
     micLevel,
     errorMessage,
+    callSummary,
+    conversationId,
     start,
     stop,
   } = useConversationSocket();
-
-  // Populated once the backend sends a call_summary message (Phase 11).
-  const [callSummary] = useState<CallSummaryData | null>(null);
 
   const isConnected = connectionStatus === "connected" || connectionStatus === "connecting";
   const headerStatus = deriveHeaderStatus(connectionStatus, agentState);
@@ -61,6 +59,17 @@ export default function Home() {
           {callSummary && (
             <div className="p-4">
               <CallSummaryPanel summary={callSummary} />
+            </div>
+          )}
+          {conversationId && (
+            <div className="p-4">
+              <Link
+                href={`/debug/${conversationId}`}
+                target="_blank"
+                className="text-xs text-neutral-400 underline hover:text-neutral-600 dark:hover:text-neutral-300"
+              >
+                View debug timeline →
+              </Link>
             </div>
           )}
         </aside>

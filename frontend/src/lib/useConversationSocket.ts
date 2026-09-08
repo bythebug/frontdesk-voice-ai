@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { CallSummaryData } from "@/components/CallSummaryPanel";
 import {
   arrayBufferToBase64,
   base64ToArrayBuffer,
@@ -43,6 +44,7 @@ export function useConversationSocket() {
   const [isRecording, setIsRecording] = useState(false);
   const [micLevel, setMicLevel] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [callSummary, setCallSummary] = useState<CallSummaryData | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -138,6 +140,9 @@ export function useConversationSocket() {
         case "audio":
           void playAudio(message.data);
           break;
+        case "call_summary":
+          setCallSummary(message);
+          break;
         case "conversation_ended":
           setConnectionStatus("offline");
           break;
@@ -211,6 +216,9 @@ export function useConversationSocket() {
 
   const start = useCallback(async () => {
     setErrorMessage(null);
+    setCallSummary(null);
+    setTranscripts([]);
+    setToolActivity([]);
     setConnectionStatus("connecting");
     const ws = new WebSocket(`${WS_URL}/ws/conversation`);
     wsRef.current = ws;
@@ -271,6 +279,7 @@ export function useConversationSocket() {
     isRecording,
     micLevel,
     errorMessage,
+    callSummary,
     start,
     stop,
     sendText,
