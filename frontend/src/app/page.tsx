@@ -5,6 +5,7 @@ import { AgentStateIndicator } from "@/components/AgentStateIndicator";
 import { CallSummaryPanel } from "@/components/CallSummaryPanel";
 import { ConversationPanel } from "@/components/ConversationPanel";
 import { deriveHeaderStatus, Header } from "@/components/Header";
+import { TextFallback } from "@/components/TextFallback";
 import { ToolActivityPanel } from "@/components/ToolActivityPanel";
 import { VoiceControls } from "@/components/VoiceControls";
 import { useConversationSocket } from "@/lib/useConversationSocket";
@@ -22,6 +23,7 @@ export default function Home() {
     conversationId,
     start,
     stop,
+    sendText,
   } = useConversationSocket();
 
   const isConnected = connectionStatus === "connected" || connectionStatus === "connecting";
@@ -50,6 +52,7 @@ export default function Home() {
               onStart={start}
               onStop={stop}
             />
+            <TextFallback disabled={connectionStatus !== "connected"} onSend={sendText} />
           </div>
         </section>
 
