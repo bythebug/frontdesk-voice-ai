@@ -54,7 +54,7 @@ backend/
         agent/               conversation state machine, LLM orchestration (Phase 4)
         voice/                STT/TTS/audio abstractions (Phase 6-7)
         tools/                appointments, customers, knowledge, notifications (Phase 3)
-        db/                   models, repositories, migrations (Phase 2)
+        db/                   models, repositories, migrations (done)
         services/             conversation + summary orchestration (Phase 4/11)
         core/                 config.py, logging.py (done)
     tests/
@@ -71,7 +71,7 @@ Makefile
 
 - Python via [`uv`](https://docs.astral.sh/uv/) (already manages its own interpreter — no system Python needed)
 - Node.js + npm
-- Docker (for Postgres) — or a native Postgres 16 install
+- PostgreSQL 16 — native via Homebrew (recommended, see below) or Docker
 - [Ollama](https://ollama.com) — install with `brew install ollama`, then `ollama serve`
 - [Piper](https://github.com/rhasspy/piper) TTS — install with `pip install piper-tts` (or download a prebuilt binary from the Piper releases page); download a voice model (e.g. `en_US-lessac-medium`) into `voice-models/piper/`
 - faster-whisper is a Python dependency installed with the backend (Phase 6) — no separate install needed
@@ -89,6 +89,20 @@ whatever fits your machine (e.g. `llama3.1:8b`, `qwen2.5:7b`, `phi3.5`).
 
 ### 2. Start Postgres
 
+Native via Homebrew (recommended — no Docker Desktop GUI/permission prompt
+needed):
+
+```bash
+brew install postgresql@16
+brew services start postgresql@16
+psql -U "$(whoami)" -d postgres -c "CREATE ROLE voiceops LOGIN PASSWORD 'voiceops';"
+psql -U "$(whoami)" -d postgres -c "CREATE DATABASE voiceops OWNER voiceops;"
+cp .env.example .env
+```
+
+Or, if you prefer Docker (`docker-compose.yml` defines the same Postgres
+service):
+
 ```bash
 cp .env.example .env
 docker compose up -d postgres
@@ -99,9 +113,15 @@ docker compose up -d postgres
 ```bash
 cd backend
 uv sync
+uv run alembic upgrade head       # create schema
+uv run python -m app.db.seed      # seed the fictional clinic (idempotent)
 uv run uvicorn app.main:app --reload --port 8000
 # → http://localhost:8000/health
 ```
+
+For tests, also create a `voiceops_test` database (same role):
+`psql -U "$(whoami)" -d postgres -c "CREATE DATABASE voiceops_test OWNER voiceops;"`
+— `tests/conftest.py` creates/drops its schema automatically each test run.
 
 ### 4. Frontend
 

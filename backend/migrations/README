@@ -1,0 +1,7 @@
+Generic single-database configuration with an async dbapi.
+
+Note: `alembic revision --autogenerate` will always propose dropping
+`knowledge_base_fts_idx` — it's a raw functional GIN index
+(`to_tsvector(...)`) created via `op.execute()` in the initial migration,
+which SQLAlchemy's ORM metadata can't represent, so autogenerate can't see
+it as already present. This is expected; don't apply that line.

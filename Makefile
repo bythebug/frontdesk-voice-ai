@@ -18,7 +18,7 @@ lint:
 	cd frontend && npm run lint
 
 db-up:
-	docker compose up -d postgres
+	brew services start postgresql@16
 
 db-down:
-	docker compose down
+	brew services stop postgresql@16
