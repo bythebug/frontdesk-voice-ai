@@ -15,6 +15,8 @@ Server -> client:
   {"type": "tool_call", "tool": "...", "arguments": {...}}
   {"type": "tool_result", "tool": "...", "success": bool, "data": {...}|null, "error": str|null}
   {"type": "audio", "data": "<base64>"}          synthesized speech (raw 16-bit PCM)
+  {"type": "call_summary", "intent": ..., "customer_name": ..., "appointment": {...}|null,
+   "issue": ..., "outcome": ..., "tools_used": [...]}   sent just before conversation_ended
   {"type": "conversation_ended", "conversation_id": "..."}
   {"type": "error", "message": "..."}
 """
@@ -33,6 +35,7 @@ from app.agent.state import ConversationState
 from app.core.logging import get_logger
 from app.db.database import get_sessionmaker
 from app.db.repositories import ConversationRepository
+from app.services.summary_service import generate_call_summary
 from app.voice.audio import decode_audio_chunk, encode_audio_chunk
 from app.voice.stt import FasterWhisperSTT, SpeechToText, SttUnavailableError
 from app.voice.tts import PiperTTS, TextToSpeech, TtsUnavailableError
@@ -141,7 +144,23 @@ async def conversation_ws(websocket: WebSocket) -> None:
 
                 elif message.type == "end_conversation":
                     await conv_repo.end(conversation.id)
+                    summary = await generate_call_summary(session, _llm_provider, state)
                     await session.commit()
+                    appointment = (
+                        {"date": str(state.appointment_date), "time": state.appointment_time}
+                        if state.appointment_date and state.appointment_time
+                        else None
+                    )
+                    await _send(
+                        websocket,
+                        "call_summary",
+                        intent=summary.intent,
+                        customer_name=summary.customer_name,
+                        appointment=appointment,
+                        issue=summary.issue,
+                        outcome=summary.summary,
+                        tools_used=summary.actions_taken,
+                    )
                     await _send(
                         websocket, "conversation_ended", conversation_id=str(conversation.id)
                     )

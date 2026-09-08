@@ -232,6 +232,14 @@ class ToolCallRepository:
         await self.session.flush()
         return tool_call
 
+    async def list_for_conversation(self, conversation_id: uuid.UUID) -> list[ToolCall]:
+        stmt = (
+            select(ToolCall)
+            .where(ToolCall.conversation_id == conversation_id)
+            .order_by(ToolCall.created_at)
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
+
 
 class CallSummaryRepository:
     def __init__(self, session: AsyncSession) -> None:

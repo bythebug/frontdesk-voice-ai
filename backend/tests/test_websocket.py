@@ -24,7 +24,9 @@ class ScriptedLLM(LLMProvider):
         return response
 
     async def generate_structured(self, messages, response_model):
-        raise NotImplementedError
+        # Only SummaryContent is ever requested (end_conversation's summary
+        # generation) — a minimal valid instance is enough for these tests.
+        return response_model(outcome="Call completed.")
 
 
 class FakeSTT(SpeechToText):
@@ -229,6 +231,11 @@ def test_end_conversation_closes_with_confirmation() -> None:
         ws.receive_json()  # agent_state listening
 
         ws.send_text(json.dumps({"type": "end_conversation"}))
+
+        summary = ws.receive_json()
+        assert summary["type"] == "call_summary"
+        assert summary["outcome"] == "Call completed."
+
         ended = ws.receive_json()
         assert ended == {
             "type": "conversation_ended",

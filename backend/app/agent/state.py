@@ -12,6 +12,7 @@ class ConversationState(BaseModel):
     customer_id: uuid.UUID | None = None
     intent: str | None = None
     appointment_date: date_type | None = None
+    appointment_time: str | None = None
     appointment_type: str | None = None
     last_appointment_id: uuid.UUID | None = None
     awaiting_confirmation: bool = False
@@ -41,6 +42,7 @@ class ConversationState(BaseModel):
         elif tool_name == "book_appointment" and data:
             self.last_appointment_id = uuid.UUID(data["appointment_id"])
             self.appointment_date = date_type.fromisoformat(data["date"])
+            self.appointment_time = data.get("start_time")
             self.appointment_type = data.get("appointment_type")
             self.current_step = "completed"
         elif tool_name == "cancel_appointment":

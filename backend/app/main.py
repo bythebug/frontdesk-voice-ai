@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import tools as _tools  # noqa: F401 — import registers all tools on the registry
+from app.api.conversations import router as conversations_router
 from app.api.websocket import router as websocket_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
@@ -40,6 +41,7 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(websocket_router)
+    app.include_router(conversations_router)
 
     return app
 
