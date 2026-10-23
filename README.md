@@ -6,13 +6,12 @@ calls real backend tools against a real database (checks availability, books
 appointments, looks up customers, answers policy questions), and talks back
 — entirely on your machine, at $0 recurring cost.
 
-> **Status:** 11 of 13 build phases complete — the full pipeline (WebSocket
-> → STT → agent → tool calling → DB → TTS) is real and has been
-> live-verified end-to-end against a running Postgres + Ollama instance,
-> not just mocks. Docker Compose for the app containers is written but
-> unverified (no local Docker install to test against — see
-> [PROJECT.md](PROJECT.md)). See PROJECT.md for the full build log,
-> decisions, and what remains.
+## Quick look
+
+- **The whole loop is real:** browser mic, WebSocket, faster-whisper speech-to-text, an agent with tool calling, PostgreSQL, Piper text-to-speech, and audio back to the browser.
+- **Tools hit a real database:** look up customers, check availability, book appointments and search the clinic knowledge base.
+- **No paid APIs:** everything runs locally on a laptop.
+- **Where to start reading:** `backend/app/agent/agent.py` (agent loop), `backend/app/agent/tool_registry.py` (tools) and `backend/app/api/websocket.py` (real-time protocol).
 
 ## Architecture
 
@@ -238,6 +237,15 @@ User:  Yes, please book it.
   installed and are each ecosystem's standard, lockfile-based tool.
 
 ## Known limitations
+
+> **Status:** 11 of 13 build phases complete — the full pipeline (WebSocket
+> → STT → agent → tool calling → DB → TTS) is real and has been
+> live-verified end-to-end against a running Postgres + Ollama instance,
+> not just mocks. Docker Compose for the app containers is written but
+> unverified (no local Docker install to test against — see
+> [PROJECT.md](PROJECT.md)). See PROJECT.md for the full build log,
+> decisions, and what remains.
+
 
 - **Interruption/barge-in** is real, not simulated: each conversational
   turn runs as a cancellable `asyncio.Task`, so the server can keep
